@@ -1,0 +1,52 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/belt.gd" id="2_belt"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fork"]
+size = Vector2(80, 20)
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="Belt" type="Node2D" parent="."]
+script = ExtResource("2_belt")
+
+[node name="Trays" type="Node2D" parent="."]
+
+[node name="Fork" type="Area2D" parent="."]
+monitorable = false
+
+[node name="Shape" type="CollisionShape2D" parent="Fork"]
+shape = SubResource("RectangleShape2D_fork")
+
+[node name="SpawnTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Stats" type="Label" parent="HUD"]
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 300.0
+offset_bottom = 160.0
+theme_override_font_sizes/font_size = 18
+
+[node name="Rules" type="Label" parent="HUD"]
+offset_left = 700.0
+offset_top = 12.0
+offset_right = 944.0
+offset_bottom = 140.0
+theme_override_font_sizes/font_size = 16
+
+[node name="Dim" type="ColorRect" parent="HUD"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.7)
+
+[node name="Message" type="Label" parent="HUD/Dim"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 1
