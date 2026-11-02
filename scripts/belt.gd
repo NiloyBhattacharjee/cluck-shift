@@ -5,6 +5,7 @@ extends Node2D
 const SPAWN := Vector2(480, -30)
 const FORK := Vector2(480, 330)
 const EXITS := {"left": Vector2(190, 460), "center": Vector2(480, 480), "right": Vector2(770, 460)}
+const FLOOR := Vector2(335, 600)  # where a missed tray tumbles to, off the bottom of the screen
 const DECISION_Y := FORK.y - 35.0  # top edge of the Fork Area2D: a tray touching this is committed
 const WIDTH := 64.0
 const LIT := Color("ffca28")
@@ -12,7 +13,8 @@ const DARK := Color("37474f")
 
 var scroll := 0.0  # belt travel, animates the stripes
 var route := "center"
-var labels := {}  # route -> what goes in that bin, filled from the rules
+var labels := {}  # route -> Array of lines naming what goes in that bin, filled from the rules
+var swinging := false  # gate still moving: both gate boxes flash
 
 
 func _draw() -> void:
@@ -36,11 +38,15 @@ func _draw() -> void:
 	draw_line(FORK, FORK + (EXITS[route] - FORK).normalized() * 28, LIT, 8)
 	for g in [["left", Vector2(-120, -40), "L-SHIFT"], ["right", Vector2(60, -40), "R-SHIFT"]]:
 		var box := Rect2(FORK + g[1], Vector2(60, 28))
-		draw_rect(box, LIT if route == g[0] else DARK)
+		draw_rect(box, Color("ff7043") if swinging else (LIT if route == g[0] else DARK))
 		draw_string(font, box.position + Vector2(0, 19), g[2], HORIZONTAL_ALIGNMENT_CENTER, 60, 12, Color.BLACK if route == g[0] else Color.WHITE)
 	# bins
 	for r in EXITS:
 		var bin := Rect2(EXITS[r] + Vector2(-75, -20), Vector2(150, 64))
 		draw_rect(bin, Color("6d4c41"))
 		draw_rect(bin, LIT if r == route else Color("3e2723"), false, 4)
-		draw_string(font, bin.position + Vector2(0, 52), labels.get(r, "-"), HORIZONTAL_ALIGNMENT_CENTER, 150, 15)
+		var lines: Array = labels.get(r, [])
+		if lines.is_empty():
+			lines = ["(empty)"]
+		for i in lines.size():
+			draw_string(font, bin.position + Vector2(0, 18 + i * 16 + (3 - lines.size()) * 8), lines[i], HORIZONTAL_ALIGNMENT_CENTER, 150, 13)

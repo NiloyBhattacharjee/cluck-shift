@@ -23,26 +23,50 @@ shape = SubResource("RectangleShape2D_fork")
 [node name="SpawnTimer" type="Timer" parent="."]
 one_shot = true
 
+[node name="HourTimer" type="Timer" parent="."]
+one_shot = true
+
 [node name="HUD" type="CanvasLayer" parent="."]
 
 [node name="Stats" type="Label" parent="HUD"]
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 300.0
-offset_bottom = 160.0
+offset_bottom = 200.0
 theme_override_font_sizes/font_size = 18
 
 [node name="Rules" type="Label" parent="HUD"]
-offset_left = 700.0
+offset_left = 680.0
 offset_top = 12.0
-offset_right = 944.0
-offset_bottom = 140.0
-theme_override_font_sizes/font_size = 16
+offset_right = 950.0
+offset_bottom = 220.0
+theme_override_font_sizes/font_size = 15
+
+[node name="NoteCard" type="ColorRect" parent="HUD"]
+visible = false
+offset_left = 250.0
+offset_top = 110.0
+offset_right = 665.0
+offset_bottom = 290.0
+color = Color(1, 0.93, 0.55, 1)
+
+[node name="Text" type="Label" parent="HUD/NoteCard"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 12.0
+offset_right = -18.0
+offset_bottom = -12.0
+theme_override_colors/font_color = Color(0.22, 0.16, 0.1, 1)
+theme_override_font_sizes/font_size = 19
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
 
 [node name="Dim" type="ColorRect" parent="HUD"]
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0, 0, 0, 0.7)
+color = Color(0, 0, 0, 0.75)
 
 [node name="Message" type="Label" parent="HUD/Dim"]
 anchor_right = 1.0
