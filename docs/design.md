@@ -5,11 +5,11 @@ Game Off 2026 entry. Theme: **SHIFT**. Engine: Godot 4.7 (GDScript), exported to
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | One belt, one fork, three tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
-| 2 | Night clock 10 PM to 6 AM, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, win at 6 AM | **Done** |
-| 3 | Shop between hours, juice (shake, particles, popups), real sounds, title screen | Next |
+| 2 | Night clock 10 PM to 6 AM, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, win at 6 AM | Done |
+| 3 | Break-room shop, PA distractions, juice (shake, particles, popups), synthesized sounds, title screen | **Done** |
 | 4 | Strange trays from 2 AM, flicker, radio glitches, normal and secret endings | Optional |
 
-Sections 1 to 16 describe what is built and tested. Section 17 is the plan for Phases 3 and 4. Every number comes
+Sections 1 to 20 describe what is built and tested. Section 21 is the plan for Phase 4. Every number comes
 from [`data/rules.json`](../data/rules.json) or a named constant, and the tests in [`tests/`](../tests) check the
 rules written here (see [testing.md](testing.md)).
 
@@ -20,7 +20,9 @@ rules written here (see [testing.md](testing.md)).
 You work the night shift on the packing line of a cartoon chicken factory, 10 PM to 6 AM. Trays of chicken roll down
 a conveyor to a three-way fork. You have two buttons, **Left Shift** and **Right Shift**, which swing the gates at the
 fork. Read each tray, remember where it goes, set the gate before it reaches the red line. Every hour the supervisor
-leaves a note that changes one rule. Get it right for pay and combos. Three strikes in one hour and you're sent home.
+leaves a note that changes one rule, and from midnight the PA keeps interrupting. Get it right for pay and combos,
+and spend some of it in the break room between hours on coffee, a mate's help or earplugs. Three strikes in one hour
+and you're sent home.
 
 ## 2. How the game uses "SHIFT"
 
@@ -49,7 +51,8 @@ leaves a note that changes one rule. Get it right for pay and combos. Three stri
 | Left Shift | Playing | Toggle the left gate. Opening it closes the right gate. |
 | Right Shift | Playing | Toggle the right gate. Opening it closes the left gate. |
 | Both Shifts (within 0.15 s) | Playing | Emergency stop: the belt and the hour clock halt for 2.5 s. 3 per night. |
-| Enter / Space | Menu, hour tally, game over, win | Continue. |
+| Left / Right Shift | Break-room shop | Move the selection left / right. |
+| Enter / Space | Title, hour tally, shop, game over, win | Continue; in the shop, buy the selected item (or skip). |
 | Anything else | Any | Ignored. |
 
 Only key-down events count. Key repeat (echo) is ignored, so holding a Shift is one press. Left and right are told
@@ -81,13 +84,18 @@ The viewport is 960 x 540 and scales with the window (`stretch/mode = canvas_ite
      left bin (190,460)      centre bin (480,480)     right bin (770,460)
 ```
 
+From 12 AM a blue **PA banner** sometimes covers the top of the belt (x 290 to 670, y 28 to 118) for 3.5 s, hiding
+incoming trays until they are past it. While the belt is emergency-stopped the whole screen pulses red.
+
 The open route is drawn in yellow: its gate box, chute outline, bin outline and the arrow on the fork hub. While a
 gate is swinging both gate boxes flash orange. Bin labels list everything that goes in that bin (up to three lines)
 and are rebuilt whenever the rules change.
 
+![Title screen](images/title.png)
+
 ![A supervisor note at 3 AM](images/note.png)
 
-![Gameplay at 3 AM: a blue-stamped tray, two strikes](images/gameplay.png)
+![12 AM: a PA announcement, a combo popup and a red-stamped tray going straight](images/gameplay.png)
 
 ## 6. Core loop
 
@@ -104,8 +112,11 @@ flowchart TD
     G -- no --> H{Exit matches the rule?}
     H -- yes --> I[Pay x multiplier<br/>combo + 1, green outline, ding]
     H -- no --> J[Wrong: strike<br/>combo reset, red outline, buzz]
-    M --> K{3 strikes this hour?}
-    J --> K
+    M --> X{Mate standing by?}
+    J --> X
+    X -- yes --> Y[Covered: no strike<br/>combo still resets]
+    X -- no --> K{3 strikes this hour?}
+    Y --> N
     K -- yes --> L[Sent home: game over]
     K -- no --> N[Tray goes to its bin or the floor]
     I --> N
@@ -254,11 +265,13 @@ correct sort:  combo      = combo + 1
                multiplier = min(1 + floor(combo / 5), 5)
                pay        = pay + pay_per_tray * multiplier
 wrong/missed:  combo      = 0
-               strikes    = strikes + 1           (pay is never taken away)
+               if mates > 0: mates = mates - 1    ("covered": no strike)
+               else:         strikes = strikes + 1 (pay is never taken away)
 end of hour:   bonus      = clean_hour_bonus if strikes == 0 and at least one tray sorted, else 0
                pay        = pay + bonus
 accuracy     = correct / sorted over the night    (0 when nothing sorted)
 sent home    = strikes this hour >= strikes_allowed
+wallet       = pay - spent                        (what you can spend, and your take-home pay)
 ```
 
 The multiplier is computed after the combo goes up, so the 5th correct tray in a row is the first paid at x2.
@@ -280,7 +293,7 @@ pay stays $60, accuracy 5/6 = 83%. A perfect night is about 405 trays: $490 for 
 
 ### 10.3 Strikes
 
-- A strike is a tray sent to the wrong exit, or a tray that misses a swinging gate.
+- A strike is a tray sent to the wrong exit, or a tray that misses a swinging gate, unless Mate's Help covers it.
 - 3 strikes **in one hour** and you are sent home, immediately. Strikes reset at the start of every hour.
 
 ## 11. The night
@@ -383,19 +396,24 @@ stateDiagram-v2
     MENU --> PLAYING: Enter / Space (new night, 10 PM)
     PLAYING --> HOUR_END: HourTimer times out
     PLAYING --> GAME_OVER: 3 strikes this hour
-    HOUR_END --> PLAYING: Enter (next hour)
+    HOUR_END --> SHOP: Enter
     HOUR_END --> WIN: Enter after the 5 AM hour
+    SHOP --> SHOP: Left / Right Shift (choose), Enter on an item you can't afford
+    SHOP --> PLAYING: Enter (buy or skip; next hour)
     GAME_OVER --> MENU: Enter
     WIN --> MENU: Enter
 ```
 
 | State | On enter | Input | Per physics frame | Leaves when |
 |---|---|---|---|---|
-| MENU | New `ShiftState`, clear trays, show title and controls | Enter, Space | Nothing | Enter |
+| MENU | New `ShiftState`, clear trays, show the title screen | Enter, Space | Nothing | Enter |
 | PLAYING | Next hour: clear belt, close gates, reset strikes, apply note, show note card, start `HourTimer` (75 s) and the first spawn after 4 s | Shifts | Tick clock and ramp, move trays, pause timers while stopped, hide the note after 4 s | Hour timer, or 3rd strike |
-| HOUR_END | Clear belt, `end_hour()` adds the clean bonus, show the tally | Enter, Space | Nothing | Enter |
-| GAME_OVER | Stop timers, show "SENT HOME at 1:23 AM", pay, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
-| WIN | Stop timers, show total pay, trays, accuracy, best combo | Enter, Space | Nothing | Enter |
+| HOUR_END | Clear belt, `end_hour()` adds the clean bonus and uses up Coffee and Earplugs, show the tally, whistle | Enter, Space | Nothing | Enter |
+| SHOP | Show the vending machine on **Skip**, with your wallet and active items | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
+| GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
+| WIN | Stop timers, show earned, spent, take-home pay, trays, accuracy, best combo | Enter, Space | Nothing | Enter |
+
+The factory hum loops only in PLAYING. The title shows only in MENU and the vending machine only in SHOP.
 
 Every new night builds a brand-new `ShiftState` in MENU, so nothing from the last night can leak into the next one.
 
@@ -417,7 +435,7 @@ sequenceDiagram
     Note over Main: _physics_process(delta), PLAYING only
     Main->>Logic: tick(delta)
     Logic-->>Main: distance to move (0 while stopped)
-    Main->>Main: pause spawn and hour timers if stopped, hide note after 4 s
+    Main->>Main: pause spawn and hour timers if stopped, hide note after 4 s,<br/>show the PA banner while pa_left > 0, pulse the hazard tint
     Main->>Tray: advance(distance) for each tray
     Tray-->>Main: true when the path is used up
     Main->>Main: thunk and free trays that reached their bin
@@ -425,26 +443,31 @@ sequenceDiagram
     Note over Fork: physics server checks overlaps
     Fork->>Main: area_entered(tray)
     Main->>Logic: sort(kind, stamp)
-    Logic-->>Main: ok / wrong / missed
-    Main->>Tray: path to bin (or floor if missed), outline green or red
-    Main->>Main: ding / buzz / whistle, game over if sent home
+    Logic-->>Main: ok / wrong / missed / covered
+    Main->>Tray: path to bin (or floor if it missed), outline green or red
+    Main->>Main: sound, popup, shake or puff; game over if sent home
 ```
 
-## 14. Audio hooks
+## 14. Audio
 
-All sounds go through `Sfx.play(name)`. Phase 2 still uses generated placeholder beeps; Phase 3 replaces them
-behind the same names.
+All sounds go through the `Sfx` autoload: `Sfx.play(name, pitch)` and `Sfx.loop("hum", on)`. Every sound is
+synthesized in code at start-up from noise bursts, sine and saw waves, pitch sweeps and envelopes (`scripts/sfx.gd`),
+so the game has no audio files and no licences to track.
 
-| Hook | Plays when |
-|---|---|
-| `gate_click` | A Shift toggles a gate |
-| `ding` | Correct sort |
-| `strike_buzz` | Wrong sort, or an emergency stop refused |
-| `missed` | A tray misses a swinging gate |
-| `tray_thunk` | A tray lands in a bin |
-| `estop` | Emergency stop starts |
-| `clock_in` | An hour starts; also the 6 AM win |
-| `hour_end` | An hour ends |
+| Hook | Plays when | How it is made |
+|---|---|---|
+| `gate_click` | A Shift toggles a gate | Noise burst plus a 2.4 kHz tick, 0.07 s |
+| `ding` | Correct sort; pitch rises with the multiplier, and again on combo milestones | Bell: 1320 Hz with two overtones, decaying |
+| `strike_buzz` | Wrong sort; refused emergency stop; can't afford | 110 Hz saw with a 9 Hz wobble |
+| `missed` | A tray misses a swinging gate | Slide whistle, 1300 Hz down to 220 Hz |
+| `tray_thunk` | A tray lands in a bin | Pitch drop 150 to 55 Hz plus a click |
+| `estop` | Emergency stop starts | Square-wave siren wobbling 470 to 830 Hz |
+| `clock_in` | An hour starts; the 6 AM win | Two-note bell, 660 then 990 Hz |
+| `hour_end` | An hour ends | Factory whistle chord with breath noise |
+| `cash` | Buying in the shop | Noise "ka" then a two-note "ching" |
+| `select` | Moving the shop selection; a covered strike | Short 1.2 kHz tick |
+| `pa_jingle` | A PA announcement starts | Ding-dong, 784 then 622 Hz |
+| `hum` (loop) | The whole time you are on the line | 55 Hz and 110 Hz with a little noise |
 
 ## 15. Tuning knobs
 
@@ -461,6 +484,11 @@ behind the same names.
 | `estops` / `estop_seconds` | rules.json | 3 / 2.5 | Emergency stops per night and their length. |
 | `stamp_chance` | rules.json | 0.3 | Share of trays stamped while a stamp rule exists. |
 | `swing_seconds` | rules.json | 0.12 | Gate swing time; a tray arriving mid-swing is missed. |
+| `shop` | rules.json | Coffee $150, Mate's Help $250, Earplugs $100 | Names, prices and descriptions of the three items. |
+| `coffee_factor` | rules.json | 0.8 | Coffee multiplies speed and divides interval by this. |
+| `pa.from_hour` / `every` / `seconds` | rules.json | 2 (12 AM) / 9 to 16 s / 3.5 s | When the PA starts, how often, how long. |
+| `pa.lines` | rules.json | 8 lines | What the PA says. |
+| `Juice.SHAKE_DECAY` / `SHAKE_PIXELS` | juice.gd | 3 per s / 10 px | Screen shake feel. |
 | `BOTH_SHIFT_WINDOW` | shift_state.gd | 0.15 s | How close two Shifts must be to count as "both". |
 | `COMBO_STEP` / `MAX_MULTIPLIER` | shift_state.gd | 5 / 5 | Combo curve. |
 | `Belt.SPAWN`, `FORK`, `EXITS`, `FLOOR` | belt.gd | see section 5 | Layout. |
@@ -471,40 +499,91 @@ Field reference: [data-format.md](data-format.md).
 
 | Issue | Impact | Mitigation |
 |---|---|---|
-| Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | README tells players to turn off the shortcut. Phase 3 title screen says so too (#21). |
+| Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | The README and the title screen tell players to turn off the shortcut (#21). A game cannot turn it off. |
 | Shift location not reported | Some setups report Shift with no location; every press acts as Right Shift (#22). | Possible fallback: physical_keycode, or a "press Left Shift" check. |
 | Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start`; Enter on the menu needs a click or key on the page anyway. |
 | Random streaks | Uniform random kinds can produce runs. | Fine so far; a shuffled bag per hour if playtests say it feels unfair. |
 
 ---
 
-## 17. Next: Phases 3 and 4 (proposal)
+## 17. The break-room shop
 
-### 17.1 Shop (Phase 3)
+After each hour's tally (not after 5 AM) you go to the break room. One purchase, or skip.
 
-After each hour's tally (not after 5 AM), spend pay on one item or skip. Browse with the Shift keys, buy with Enter.
+| Item | Price | Effect | Lasts |
+|---|---|---|---|
+| Coffee | $150 | Belt speed x 0.8 and tray interval / 0.8: slower, and trays come less often, so the gap between trays is unchanged | Next hour |
+| Mate's Help | $250 | Your mate covers your next strike (wrong or missed): no strike, but the tray still doesn't pay and the combo still resets | Until used; you can stack several |
+| Earplugs | $100 | No PA announcements | Next hour |
+| Skip | free | Keep your pay | |
 
-| Item | Effect |
+- **Controls:** Left / Right Shift move the selection (it wraps), Enter buys the selected item and starts the next
+  hour. The shop opens on **Skip**, so pressing Enter straight through never spends money.
+- **Can't afford:** the price shows red with "can't afford"; Enter on it buzzes, shakes slightly and stays in the shop.
+- **The trade-off:** everything spent comes off your take-home pay, which is the score on the win screen. Buying is
+  insurance against being sent home; skipping is betting on yourself.
+
+```mermaid
+flowchart LR
+    HE[HOUR_END tally] -->|Enter| SH[SHOP, on Skip]
+    SH -->|Left / Right Shift| SH
+    SH -->|Enter on Skip| P[PLAYING next hour]
+    SH -->|Enter, affordable| B[buy: wallet - price<br/>effect armed, ka-ching] --> P
+    SH -->|Enter, too expensive| R[buzz, stay] --> SH
+```
+
+![The break room](images/shop.png)
+
+## 18. PA announcements (distraction)
+
+From 12 AM (`pa.from_hour` = 2) the factory PA interrupts: a ding-dong, then a blue banner over the top of the belt for
+3.5 s with a silly announcement ("Please stop high-fiving the drumsticks."). The banner hides trays at the top of the
+belt, so you see them later than usual. The next announcement comes 9 to 16 s after the last one ends.
+
+- The first one in an hour waits until after the supervisor's note.
+- It runs on the game clock, so an emergency stop does not stop it.
+- Earplugs block it for an hour. Announcements never overlap (tested: `every` minimum > `seconds`).
+- Timing uses `ShiftState.rng`, so tests can seed it.
+
+## 19. Juice
+
+Feedback that changes nothing about the rules lives in `scripts/juice.gd`.
+
+| Event | Feedback |
 |---|---|
-| Coffee | Next hour the belt runs 20% slower and trays come 20% less often |
-| Mate's Help | Your mate covers your next strike (the tray still doesn't pay) |
-| Earplugs | Next hour, the PA announcements are blocked |
+| Correct sort | "+$20" floats up from the fork in green; a feather puff in the food's colour when the tray lands |
+| Combo of 5, 10, 15... | "COMBO 10! x3 PAY" in big yellow text; the ding pitches up |
+| Higher multiplier | Each ding is a little higher (+8% per multiplier step) |
+| Wrong sort | "STRIKE!" in red, a red puff at the fork, screen shake |
+| Missed tray | "MISSED!", the tray tumbles off the line, screen shake |
+| Mate covers | "YOUR MATE COVERED IT!" in blue, a small shake |
+| Emergency stop | "EMERGENCY STOP!", a small shake, the screen pulses red until the belt restarts, siren |
+| Sent home | A big shake behind the game-over card |
+| Buying | The item's name pops up as the next hour starts; ka-ching |
 
-### 17.2 Distractions and juice (Phase 3)
+Screen shake uses trauma: each event adds trauma (capped at 1), it decays at 3 per second, and the camera offset is
+`10 px x trauma squared`, so small knocks stay small and big ones are big.
 
-From 12 AM the factory PA interrupts with announcements: a banner over the top of the belt that hides incoming trays
-for a few seconds. Earplugs block it. Juice: pay popups, combo popups, particle puffs at the bins, screen shake on
-strikes, a hazard flash during emergency stops, synthesized sounds, and a title screen with a chicken in a hard hat.
+## 20. Title screen
 
-### 17.3 The strange night (Phase 4, optional)
+A night-shift chicken in a hard hat and hi-vis vest, holding a clipboard and bobbing gently; a moon; a moving belt
+along the bottom; the four controls; the rules in three lines; a blinking "PRESS ENTER TO CLOCK IN"; and the Sticky
+Keys hint. All drawn with shapes in `scripts/title.gd`. Game over and the win screen return here.
+
+---
+
+## 21. Next: the strange night (Phase 4, optional proposal)
 
 From 2 AM a few trays carry a chicken in sunglasses and a trench coat. No rule covers them, so routing them never
-costs a strike. The lights flicker and the radio picks up clucking that sounds like instructions ("...straight...
-the dock... 6 AM..."). Send every one straight to the loading dock for the secret ending (The Great Escape: the trucks
-leave at dawn, driven by chickens); otherwise the normal ending, a payslip and the bus home.
+costs a strike. The lights flicker and the PA picks up clucking that sounds like instructions ("...straight... the
+dock... 6 AM..."); Earplugs mute those hints too. Send every one straight to the loading dock for the secret ending
+(The Great Escape: the trucks leave at dawn, driven by chickens); otherwise the normal ending, a payslip and the bus
+home.
 
-## 18. Open questions
+## 22. Open questions
 
 1. Should the emergency stop be refunded if no tray was near the red line? (Prevents wasting it by accident.)
 2. Is 0.12 s of gate swing noticeable enough, or should missed trays get a bigger visual (a wobble on the gate)?
 3. Should the 2 AM swap get a longer note time? It reverses every habit at once.
+4. Are the shop prices right? A perfect player can afford everything; a struggling one earns roughly $300 to $800 an
+   hour. Playtest whether Mate's Help at $250 is bought by the players who need it.

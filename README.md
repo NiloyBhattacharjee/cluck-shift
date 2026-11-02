@@ -2,17 +2,22 @@
 
 You work the night shift on the packing line of a cartoon chicken factory, 10 PM to 6 AM. Trays of wings, drumsticks
 and nuggets roll down to a fork, and the **only controls are the Shift keys**. Set the gate before each tray hits the
-red line. Every hour the supervisor changes one rule. Sort right for pay and combos; three strikes in one hour and
-you're sent home.
+red line. Every hour the supervisor changes one rule, and from midnight the PA won't shut up. Sort right for pay
+and combos, spend it in the break room on coffee, a mate's help or earplugs, and make it to 6 AM. Three strikes in
+one hour and you're sent home.
 
 A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme **SHIFT**. Made with Godot 4.7
 (GDScript), playable in the browser.
 
 ![Gameplay](docs/images/gameplay.png)
 
-> **Status: Phase 2 of 4.** The whole night is playable: eight hours, a supervisor note that changes one rule each
-> hour, stamps, a pay tally every hour and a 6 AM win. The shop, juice and title screen are next. See the
-> [roadmap](#roadmap).
+| | |
+|---|---|
+| ![Title screen](docs/images/title.png) | ![The break room](docs/images/shop.png) |
+
+> **Status: Phase 3 of 4.** The full game is playable: a title screen, eight hours with a rule change each hour,
+> stamps, PA distractions, a break-room shop between hours, popups, particles, screen shake and synthesized sounds,
+> and a 6 AM win. The optional strange night (Phase 4) is the only part left. See the [roadmap](#roadmap).
 
 ## Controls
 
@@ -21,7 +26,8 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 | **Left Shift** | Open / close the left gate |
 | **Right Shift** | Open / close the right gate |
 | **Both Shifts together** | Emergency stop: the belt and the clock halt for 2.5 s (3 per night) |
-| Enter / Space | Menus only |
+| Left / Right Shift in the break room | Choose an item |
+| Enter / Space | Menus; buy in the break room |
 
 With both gates closed, trays go straight on. Opening one gate closes the other. No mouse, no other keys.
 
@@ -30,6 +36,9 @@ supervisor's sticky note changes one rule: nuggets move, red-stamped trays go to
 swap. The board in the top right always shows the current rules, with the new one marked `*`. A stamp beats what's on
 the tray. Each correct tray pays $10 times your combo (x2 from 5 in a row, up to x5), and a clean hour earns a $100
 bonus. A wrong exit is a strike, and so is a tray that arrives while the gate is still swinging: press early.
+
+**Between hours** the break room sells Coffee ($150, slower belt next hour), Mate's Help ($250, covers your next
+strike) and Earplugs ($100, no PA next hour). Whatever you spend comes off your take-home pay.
 
 > **Windows players:** pressing Shift five times opens the Sticky Keys prompt. Turn it off in
 > Settings > Accessibility > Keyboard > Sticky keys > "Keyboard shortcut for Sticky keys".
@@ -46,8 +55,8 @@ From a terminal: `godot --path .`
 
 ```bash
 godot --headless --path . --import                                # once, after cloning
-godot --headless --path . -s tests/test_logic.gd                  # 132 rule checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night of the real scene
+godot --headless --path . -s tests/test_logic.gd                  # 161 rule checks
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (133 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).
@@ -81,7 +90,8 @@ and one supervisor note per hour, each changing one rule:
   cancels one with `null`), `swap` swaps two exits. The board and bin labels update themselves.
 - **Add a tray kind or stamp colour:** use it in a note, then give it art in `Tray.FOOD` / `Tray.STAMPS` and
   `Tray._draw()` (`scripts/tray.gd`). The tests fail until it has art.
-- **Retune difficulty:** each hour's belt `speed` and `interval`, pay, strikes and emergency stops are in the same file.
+- **Retune difficulty:** each hour's belt `speed` and `interval`, pay, strikes, emergency stops, shop prices and the
+  PA's timing and lines are in the same file.
 
 Then run the tests: they check every note changes exactly one rule to a real exit, trays can't overlap, and a
 perfect player can still sort the whole night. Field reference: [docs/data-format.md](docs/data-format.md).
@@ -105,7 +115,10 @@ scripts/shift_state.gd every rule of the night, no nodes: what the tests drive
 scripts/main.gd        game states, input, spawning, HUD
 scripts/belt.gd        draws the belt, fork, gates and bins
 scripts/tray.gd        a tray: movement and drawing
-scripts/sfx.gd         sound hooks (placeholder beeps)
+scripts/juice.gd       popups, particle puffs, screen shake
+scripts/title.gd       the title screen
+scripts/shop_view.gd   the break-room vending machine
+scripts/sfx.gd         every sound, synthesized at start-up
 tests/                 headless test scripts
 ```
 
@@ -115,8 +128,8 @@ tests/                 headless test scripts
 |---|---|---|
 | 1 | Belt, fork, 3 tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
 | 2 | 10 PM to 6 AM night clock, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, 6 AM win | Done |
-| 3 | Shop between hours (Coffee, Mate's Help, Earplugs), screen shake, particles, popups, sounds, title screen | Next |
-| 4 | Strange trays from 2am, flickering lights, radio glitches, normal and secret endings | Optional |
+| 3 | Break-room shop (Coffee, Mate's Help, Earplugs), PA distractions, screen shake, particles, popups, synthesized sounds, title screen | Done |
+| 4 | Strange trays from 2 AM, flickering lights, radio glitches, normal and secret endings | Optional |
 
 Each item is a [GitHub issue](../../issues). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
