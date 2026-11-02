@@ -1,26 +1,34 @@
 extends Node2D
-## Scene glue: game state machine, Shift input, spawning and moving trays, HUD.
+## Scene glue: game state machine, Shift input, spawning and moving trays, HUD, shop and juice.
 ## The rules themselves live in ShiftState (scripts/shift_state.gd).
 
-enum State { MENU, PLAYING, HOUR_END, GAME_OVER, WIN }
+enum State { MENU, PLAYING, HOUR_END, SHOP, GAME_OVER, WIN }
 
 const TRAY := preload("res://scenes/tray.tscn")
 const ROUTE_NAMES := {"left": "LEFT", "center": "STRAIGHT", "right": "RIGHT"}
-const RESULT_SOUNDS := {"ok": "ding", "wrong": "strike_buzz", "missed": "missed"}
+const RESULT_SOUNDS := {"ok": "ding", "wrong": "strike_buzz", "missed": "missed", "covered": "select"}
+const SKIP := {"id": "skip", "name": "Skip", "price": 0, "text": "Keep your pay. Straight back to the line."}
+const POPUP_AT := Belt.FORK + Vector2(0, -70)
 
 var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
 var state := State.MENU
 var logic := ShiftState.new(cfg)
+var _pa_seen := 0  # logic.pa_count when the banner last updated
 
 @onready var belt: Belt = $Belt
 @onready var trays: Node2D = $Trays
+@onready var juice: Juice = $Juice
 @onready var spawn_timer: Timer = $SpawnTimer
 @onready var hour_timer: Timer = $HourTimer
 @onready var stats: Label = $HUD/Stats
 @onready var rules: Label = $HUD/Rules
 @onready var note_card: ColorRect = $HUD/NoteCard
+@onready var pa_banner: ColorRect = $HUD/PABanner
+@onready var hazard: ColorRect = $HUD/Hazard
 @onready var dim: ColorRect = $HUD/Dim
 @onready var message: Label = $HUD/Dim/Message
+@onready var shop: Control = $HUD/Shop
+@onready var title: Control = $HUD/Title
 
 
 func _ready() -> void:
@@ -28,6 +36,7 @@ func _ready() -> void:
 	$Fork.area_entered.connect(_on_tray_at_fork)
 	spawn_timer.timeout.connect(_spawn)
 	hour_timer.timeout.connect(_on_hour_over)
+	shop.items = cfg.shop + [SKIP]
 	_enter(State.MENU)
 
 
@@ -39,14 +48,17 @@ func _enter(new_state: State) -> void:
 		spawn_timer.stop()
 		hour_timer.stop()
 		note_card.hide()
+		pa_banner.hide()
+		hazard.hide()
+	Sfx.loop("hum", state == State.PLAYING)
+	title.visible = state == State.MENU
+	shop.visible = state == State.SHOP
+	_show("")
 	match state:
 		State.MENU:
 			logic = ShiftState.new(cfg)
+			_pa_seen = 0
 			_clear_trays()
-			_show("CLUCK SHIFT\n\nNight shift on the packing line, 10 PM to 6 AM.\nSet the gate before each tray touches the red line.\n"
-				+ "The supervisor changes one rule every hour.\n\n"
-				+ "LEFT SHIFT  -  open / close the left gate\nRIGHT SHIFT  -  open / close the right gate\n"
-				+ "BOTH SHIFTS  -  emergency stop (%d per night)\n\nPress Enter to clock in" % logic.estops_left)
 		State.PLAYING:
 			_start_hour()
 		State.HOUR_END:
@@ -55,14 +67,18 @@ func _enter(new_state: State) -> void:
 			Sfx.play("hour_end")
 			_show("%s - %s DONE\n\nTrays sorted: %d\nCorrect: %d\nStrikes: %d\nPay this hour: $%d\nClean hour bonus: $%d\n\nNight total: $%d\n\nPress Enter to %s"
 				% [t.from, t.to, t.sorted, t.ok, t.strikes, t.pay, t.bonus, t.total,
-				"clock off" if logic.is_last_hour() else "start the next hour"])
+				"clock off" if logic.is_last_hour() else "go to the break room"])
+		State.SHOP:
+			shop.selected = shop.items.size() - 1  # start on Skip, so Enter alone never spends
+			_refresh_shop()
 		State.GAME_OVER:
-			_show("SENT HOME at %s!\n\nPay: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n\nPress Enter"
-				% [logic.clock_text(), logic.pay, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
+			juice.shake(1.0)
+			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n\nPress Enter"
+				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
 		State.WIN:
 			Sfx.play("clock_in")
-			_show("6 AM. YOU MADE IT!\n\nTotal pay: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n\nPress Enter"
-				% [logic.pay, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
+			_show("6 AM. YOU MADE IT!\n\nEarned: $%d\nSpent in the break room: $%d\nTake-home pay: $%d\n\nTrays sorted: %d    Accuracy: %d%%    Best combo: %d\n\nPress Enter"
+				% [logic.pay, logic.spent, logic.wallet(), logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
 	_refresh_rules()
 	_update_hud()
 
@@ -70,7 +86,6 @@ func _enter(new_state: State) -> void:
 func _start_hour() -> void:
 	_clear_trays()
 	logic.start_hour()
-	_show("")
 	note_card.get_node("Text").text = "SUPERVISOR NOTE - %s\n\n%s" % [ShiftState.hour_name(logic.hour), logic.note.get("text", "")]
 	note_card.show()
 	spawn_timer.paused = false
@@ -89,21 +104,55 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if state != State.PLAYING:
-		if key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
-			match state:
-				State.MENU:
-					_enter(State.PLAYING)
-				State.HOUR_END:
-					_enter(State.WIN if logic.is_last_hour() else State.PLAYING)
-				State.GAME_OVER, State.WIN:
-					_enter(State.MENU)
+	var side := "left" if key.location == KEY_LOCATION_LEFT else "right"
+	if state == State.PLAYING:
+		if key.keycode == KEY_SHIFT:
+			_on_shift(side)
 		return
-	if key.keycode != KEY_SHIFT:
+	if state == State.SHOP and key.keycode == KEY_SHIFT:
+		shop.selected = wrapi(shop.selected + (-1 if side == "left" else 1), 0, shop.items.size())
+		Sfx.play("select")
+		_refresh_shop()
 		return
-	var result := logic.press_shift("left" if key.location == KEY_LOCATION_LEFT else "right")
-	Sfx.play({"toggle": "gate_click", "estop": "estop", "denied": "strike_buzz"}[result])
+	if key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+		match state:
+			State.MENU:
+				_enter(State.PLAYING)
+			State.HOUR_END:
+				_enter(State.WIN if logic.is_last_hour() else State.SHOP)
+			State.SHOP:
+				_checkout()
+			State.GAME_OVER, State.WIN:
+				_enter(State.MENU)
+
+
+func _on_shift(side: String) -> void:
+	var result := logic.press_shift(side)
+	match result:
+		"toggle":
+			Sfx.play("gate_click")
+		"estop":
+			Sfx.play("estop")
+			juice.shake(0.35)
+			juice.popup("EMERGENCY STOP!", Vector2(480, 200), Color("ff7043"), 28)
+		"denied":
+			Sfx.play("strike_buzz")
+			juice.popup("NO E-STOPS LEFT" if logic.estops_left == 0 else "ALREADY STOPPED", Vector2(480, 200), Color("ef5350"))
 	_update_hud()
+
+
+## Enter in the shop: buy the selected item (or skip) and start the next hour.
+func _checkout() -> void:
+	var item: Dictionary = shop.items[shop.selected]
+	if item.id == "skip":
+		_enter(State.PLAYING)
+	elif logic.buy(item.id):
+		Sfx.play("cash")
+		_enter(State.PLAYING)
+		juice.popup(item.name.to_upper() + "!", Vector2(480, 380), Color("ffca28"), 26)
+	else:
+		Sfx.play("strike_buzz")
+		juice.shake(0.2)
 
 
 # --- belt ------------------------------------------------------------------
@@ -120,8 +169,20 @@ func _physics_process(delta: float) -> void:
 		if not t.is_queued_for_deletion() and t.advance(step) and t.routed:
 			if not t.falling:
 				Sfx.play("tray_thunk")
+				juice.puff(t.position, Tray.FOOD.get(t.kind, Color.WHITE))
 			t.queue_free()
+	_update_pa()
+	hazard.visible = logic.is_stopped()
+	hazard.color.a = 0.12 + 0.1 * sin(logic.clock * 14.0)
 	_update_hud()
+
+
+func _update_pa() -> void:
+	pa_banner.visible = logic.pa_left > 0.0
+	if logic.pa_count != _pa_seen:
+		_pa_seen = logic.pa_count
+		pa_banner.get_node("Text").text = "PA:  " + logic.pa_line
+		Sfx.play("pa_jingle")
 
 
 func _spawn() -> void:
@@ -141,11 +202,26 @@ func _on_tray_at_fork(area: Area2D) -> void:
 		return
 	t.routed = true
 	var result := logic.sort(t.kind, t.stamp)
-	t.falling = result == "missed"
+	t.falling = logic.last_missed
 	t.path.append(Belt.FLOOR if t.falling else Belt.EXITS[logic.route])
 	t.result = 1 if result == "ok" else -1
 	t.queue_redraw()
-	Sfx.play(RESULT_SOUNDS[result])
+	match result:
+		"ok":
+			var milestone := logic.combo % ShiftState.COMBO_STEP == 0
+			Sfx.play("ding", 1.0 + 0.08 * (logic.multiplier() - 1) + (0.15 if milestone else 0.0))
+			juice.popup("+$%d" % logic.last_gain, POPUP_AT, Color("9ccc65"))
+			if milestone:
+				juice.popup("COMBO %d!  x%d PAY" % [logic.combo, logic.multiplier()], Vector2(480, 180), Color("ffca28"), 30)
+		"wrong", "missed":
+			Sfx.play(RESULT_SOUNDS[result])
+			juice.shake(0.6)
+			juice.popup("STRIKE!" if result == "wrong" else "MISSED!", POPUP_AT, Color("ef5350"), 28)
+			juice.puff(Belt.FORK, Color("ef5350"), 10)
+		"covered":
+			Sfx.play(RESULT_SOUNDS[result])
+			juice.shake(0.25)
+			juice.popup("YOUR MATE COVERED IT!", POPUP_AT, Color("4fc3f7"), 24)
 	if logic.sent_home():
 		_enter(State.GAME_OVER)
 
@@ -160,6 +236,13 @@ func _clear_trays() -> void:
 func _show(text: String) -> void:
 	message.text = text
 	dim.visible = text != ""
+
+
+func _refresh_shop() -> void:
+	shop.wallet = logic.wallet()
+	shop.heading = "%s - %s break. One item, or skip." % [ShiftState.hour_name(logic.hour), ShiftState.hour_name(logic.hour + 1)]
+	shop.owned = "Mate's Help x%d" % logic.mates if logic.mates > 0 else ""
+	shop.queue_redraw()
 
 
 ## Rebuilds the rules board and the bin labels from the current rules.
@@ -185,12 +268,19 @@ func _refresh_rules() -> void:
 
 func _update_hud() -> void:
 	var allowed := int(cfg.strikes_allowed)
-	stats.text = "%s   HOUR %d/%d\nPAY  $%d\nCOMBO  %d   (x%d pay)\nSTRIKES  %s\nE-STOPS  %d\nBELT  %.1fx%s" % [
+	var items := PackedStringArray()
+	if logic.coffee:
+		items.append("COFFEE")
+	if logic.earplugs:
+		items.append("EARPLUGS")
+	if logic.mates > 0:
+		items.append("MATE x%d" % logic.mates)
+	stats.text = "%s   HOUR %d/%d\nPAY  $%d\nCOMBO  %d   (x%d pay)\nSTRIKES  %s\nE-STOPS  %d\nBELT  %.1fx%s\n%s" % [
 		logic.clock_text(), maxi(logic.hour + 1, 1), cfg.hours.size(),
-		logic.pay, logic.combo, logic.multiplier(),
+		logic.wallet(), logic.combo, logic.multiplier(),
 		"X ".repeat(logic.strikes) + "_ ".repeat(maxi(allowed - logic.strikes, 0)),
 		logic.estops_left, logic.speed / cfg.hours[0].speed[0],
-		"    STOPPED!" if logic.is_stopped() else ""]
+		"    STOPPED!" if logic.is_stopped() else "", "  ".join(items)]
 	belt.route = logic.route
 	belt.swinging = logic.is_swinging()
 	belt.queue_redraw()

@@ -17,6 +17,9 @@ func _initialize() -> void:
 	test_supervisor_notes()
 	test_hour_tally()
 	test_next_tray()
+	test_shop()
+	test_items()
+	test_pa()
 	test_tray_path()
 	test_rules_data()
 	print("\n%s: %d failure(s)" % ["PASS" if failures == 0 else "FAIL", failures])
@@ -229,6 +232,78 @@ func test_next_tray() -> void:
 	check(tenders > 150, "a new kind starts spawning as soon as it has a rule")
 
 
+func test_shop() -> void:
+	var s := night()
+	check(s.wallet() == 0 and not s.buy("coffee"), "can't buy with an empty wallet")
+	check(s.spent == 0 and not s.coffee, "a refused purchase changes nothing")
+	s.pay = 1000
+	check(s.buy("coffee") and s.spent == s.shop_item("coffee").price, "buying takes the price off the wallet")
+	check(s.wallet() == 1000 - s.spent and s.pay == 1000, "spending lowers the wallet, not what you earned")
+	check(not s.buy("pizza"), "unknown items can't be bought")
+	s.pay = s.spent + s.shop_item("mate").price - 1
+	check(not s.buy("mate"), "one dollar short is still too short")
+
+
+func test_items() -> void:
+	var s := night()
+	s.pay = 10000
+	s.end_hour()
+	s.buy("coffee")
+	s.start_hour()
+	var h: Dictionary = cfg.hours[1]
+	check(is_equal_approx(s.speed, h.speed[0] * cfg.coffee_factor), "coffee: the belt runs slower all hour")
+	check(is_equal_approx(s.interval, h.interval[0] / cfg.coffee_factor), "coffee: trays come less often")
+	check(is_equal_approx(s.speed * s.interval, h.speed[0] * h.interval[0]), "coffee keeps the gap between trays the same")
+	s.end_hour()
+	s.start_hour()
+	check(s.speed == cfg.hours[2].speed[0], "coffee lasts one hour")
+
+	s.buy("mate")
+	s.route = "right"
+	check(s.sort("wing") == "covered" and s.strikes == 0 and s.mates == 0, "your mate covers a wrong tray: no strike")
+	check(s.combo == 0 and s.hour_ok == 0, "a covered tray still breaks the combo and doesn't pay")
+	check(s.sort("wing") == "wrong" and s.strikes == 1, "the mate only covers one")
+	s.buy("mate")
+	s.end_hour()
+	s.start_hour()
+	check(s.mates == 1, "Mate's Help lasts until used, across hours")
+	s.press_shift("left")
+	check(s.sort("wing") == "covered" and s.last_missed, "the mate covers a missed tray too, and it still falls")
+
+
+func test_pa() -> void:
+	var s := night()
+	_play_hour(s)
+	check(s.pa_count == 0, "no PA before pa.from_hour")
+	while s.hour < int(cfg.pa.from_hour):
+		s.start_hour()
+	var first: float = cfg.note_seconds + cfg.pa.every[1] + 0.1
+	for i in int(first * 10):
+		s.tick(0.1)
+	check(s.pa_count >= 1 and s.pa_line in cfg.pa.lines, "from pa.from_hour the PA interrupts within %.1f s" % first)
+	var count := s.pa_count
+	_play_hour(s)
+	check(s.pa_count >= count + int((cfg.hour_seconds - first) / cfg.pa.every[1]), "and keeps interrupting every few seconds (%d this hour)" % s.pa_count)
+	check(s.pa_left <= cfg.pa.seconds, "an announcement lasts pa.seconds")
+	s.pay = 1000
+	s.end_hour()
+	s.buy("earplugs")
+	s.start_hour()
+	var with_plugs := s.pa_count
+	_play_hour(s)
+	check(s.pa_count == with_plugs and s.pa_left == 0.0, "earplugs: no PA all hour")
+	s.end_hour()
+	s.start_hour()
+	_play_hour(s)
+	check(s.pa_count > with_plugs, "earplugs last one hour")
+
+
+## Ticks a whole hour in 0.1 s steps (PA timing included).
+func _play_hour(s: ShiftState) -> void:
+	for i in int(cfg.hour_seconds * 10):
+		s.tick(0.1)
+
+
 func test_tray_path() -> void:
 	var t := Tray.new()
 	t.position = Vector2(0, 0)
@@ -275,3 +350,13 @@ func test_rules_data() -> void:
 		check(cfg.routes[kind] in ShiftState.EXITS, "starting rule for %s names a real exit" % kind)
 	check(cfg.stamp_chance > 0.0 and cfg.stamp_chance < 0.5, "stamps are the exception, not the rule")
 	check(cfg.swing_seconds < ShiftState.BOTH_SHIFT_WINDOW, "the gate swing is shorter than the both-Shifts window")
+	var ids := []
+	for item: Dictionary in cfg.shop:
+		check(item.has("name") and item.has("text") and item.price > 0, "shop item %s has a name, a description and a price" % item.id)
+		ids.append(item.id)
+	ids.sort()
+	check(ids == ["coffee", "earplugs", "mate"], "the shop sells exactly the three items the rules know")
+	check(cfg.coffee_factor > 0.5 and cfg.coffee_factor < 1.0, "coffee slows the belt, but not to a crawl")
+	check(cfg.pa.from_hour > 0 and cfg.pa.from_hour < cfg.hours.size(), "the PA starts partway through the night")
+	check(cfg.pa.every[0] > cfg.pa.seconds and cfg.pa.every[1] >= cfg.pa.every[0], "announcements never overlap")
+	check(cfg.pa.lines.size() >= 4, "enough PA lines not to repeat constantly")
