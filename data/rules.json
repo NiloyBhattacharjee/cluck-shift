@@ -1,0 +1,15 @@
+{
+  "routes": { "wing": "left", "drumstick": "right", "nugget": "center" },
+  "pay_per_tray": 10,
+  "strikes_allowed": 3,
+  "estops": 3,
+  "estop_seconds": 2.5,
+  "belt": {
+    "start_speed": 110,
+    "max_speed": 280,
+    "speed_ramp": 1.5,
+    "start_interval": 2.4,
+    "min_interval": 0.9,
+    "interval_ramp": 0.013
+  }
+}
