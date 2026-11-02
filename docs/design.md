@@ -4,42 +4,43 @@ Game Off 2026 entry. Theme: **SHIFT**. Engine: Godot 4.7 (GDScript), exported to
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | One belt, one fork, three tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | **Done** |
-| 2 | Night clock 10pm to 6am, per-hour speed ramp, supervisor rule changes, pay tally, win at 6am | Planned |
-| 3 | Shop between hours, juice (shake, particles, popups), real sounds, title screen | Planned |
-| 4 | Strange trays from 2am, flicker, radio glitches, normal and secret endings | Optional |
+| 1 | One belt, one fork, three tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
+| 2 | Night clock 10 PM to 6 AM, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, win at 6 AM | **Done** |
+| 3 | Shop between hours, juice (shake, particles, popups), real sounds, title screen | Next |
+| 4 | Strange trays from 2 AM, flicker, radio glitches, normal and secret endings | Optional |
 
-Sections 1 to 14 describe what is built and tested. Section 15 is the design for Phases 2 to 4 and is a proposal
-until those phases land. Every number below comes from [`data/rules.json`](../data/rules.json) or a named
-constant, and the tests in [`tests/`](../tests) check the rules listed here (see [testing.md](testing.md)).
+Sections 1 to 16 describe what is built and tested. Section 17 is the plan for Phases 3 and 4. Every number comes
+from [`data/rules.json`](../data/rules.json) or a named constant, and the tests in [`tests/`](../tests) check the
+rules written here (see [testing.md](testing.md)).
 
 ---
 
 ## 1. Pitch
 
-You work the night shift on the packing line of a cartoon chicken factory. Trays of wings, drumsticks and nuggets
-roll down a conveyor to a three-way fork. You have two buttons, **Left Shift** and **Right Shift**, which swing the
-gates at the fork. Read each tray, remember where it goes, set the gate before it reaches the red line. Get it right
-and you earn pay and build a combo. Get it wrong three times and the supervisor sends you home.
+You work the night shift on the packing line of a cartoon chicken factory, 10 PM to 6 AM. Trays of chicken roll down
+a conveyor to a three-way fork. You have two buttons, **Left Shift** and **Right Shift**, which swing the gates at the
+fork. Read each tray, remember where it goes, set the gate before it reaches the red line. Every hour the supervisor
+leaves a note that changes one rule. Get it right for pay and combos. Three strikes in one hour and you're sent home.
 
 ## 2. How the game uses "SHIFT"
 
 | Meaning of shift | Where it shows up |
 |---|---|
 | The Shift keys | They are the only gameplay controls. |
-| A night shift | The fiction: you clock in at 10pm and the night ends at 6am (Phase 2). |
-| Shifting gears | The belt keeps speeding up. |
-| Shifting rules | Each hour the supervisor changes one rule (Phase 2). |
-| Shifting reality | From 2am things on the line stop making sense (Phase 4). |
+| A night shift | You clock in at 10 PM and the night ends at 6 AM. |
+| Shifting gears | The belt speeds up within every hour and starts faster each hour. |
+| Shifting rules | Each hour the supervisor changes one rule: kinds move, stamps appear, chutes swap. |
+| Shifting reality | From 2 AM things on the line stop making sense (Phase 4). |
 
 ## 3. Design pillars
 
 1. **Two keys, nothing else.** Every gameplay decision is a Shift press. Enter and Space only drive menus. No mouse.
 2. **Read, then commit.** The player can always see the next tray coming and has a clear moment (the red line)
    after which the decision is locked. A strike is always the player's choice, never a surprise.
-3. **Light and cartoony.** Bright shapes, silly supervisor notes, no gore. Mistakes are funny, not grim.
-4. **Rules are data.** Routes, pay, strikes and belt speeds live in `data/rules.json`. A designer can retune or add
-   rules without touching code.
+3. **The rules move under you.** Each hour changes one thing. The challenge is memory and attention as much as
+   reflexes, and the board always shows the current rules with the new one marked.
+4. **Light and cartoony.** Bright shapes, silly supervisor notes, no gore.
+5. **Rules are data.** Routes, notes, pay, strikes and belt speeds live in `data/rules.json`.
 
 ## 4. Controls
 
@@ -47,13 +48,13 @@ and you earn pay and build a combo. Get it wrong three times and the supervisor 
 |---|---|---|
 | Left Shift | Playing | Toggle the left gate. Opening it closes the right gate. |
 | Right Shift | Playing | Toggle the right gate. Opening it closes the left gate. |
-| Both Shifts (within 0.15 s) | Playing | Emergency stop: the belt halts for 2.5 s. 3 per night. |
-| Enter / Space | Menu, game over | Clock in (start a shift). |
+| Both Shifts (within 0.15 s) | Playing | Emergency stop: the belt and the hour clock halt for 2.5 s. 3 per night. |
+| Enter / Space | Menu, hour tally, game over, win | Continue. |
 | Anything else | Any | Ignored. |
 
-Only key-down events count. Key repeat (echo) is ignored, so holding a Shift does nothing more than one press.
-Left and right are told apart by the key's `location` (`KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`), which Godot
-reads from the OS on desktop and from `KeyboardEvent.location` in the browser.
+Only key-down events count. Key repeat (echo) is ignored, so holding a Shift is one press. Left and right are told
+apart by the key's `location` (`KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`), which Godot reads from the OS on desktop
+and from `KeyboardEvent.location` in the browser.
 
 ## 5. Screen layout
 
@@ -62,46 +63,53 @@ The viewport is 960 x 540 and scales with the window (`stretch/mode = canvas_ite
 ```
  x=0                              x=480                              x=960
  +-----------------------------------------------------------------------+ y=0
- | PAY  $120                       |    |          SUPERVISOR SAYS:      |
- | COMBO 7  (x2 pay)               |[T] |  <- tray spawns at y=-30       |
- | STRIKES X _ _                   |    |          WING      -> LEFT     |
- | E-STOPS 3                       |    |          DRUMSTICK -> RIGHT    |
- | BELT 1.4x                       |    |          NUGGET    -> STRAIGHT |
- |                                 |[T] |  belt, 64 px wide              |
- |                                 |    |                                |
+ | 11:42 PM  HOUR 2/8              |    |    SUPERVISOR SAYS:            |
+ | PAY  $640                       |[T] |    RED STAMP -> STRAIGHT       |
+ | COMBO 7  (x2 pay)               |    |    WING -> LEFT                |
+ | STRIKES X _ _      +--------------------+ * NUGGET -> RIGHT           |
+ | E-STOPS 3          | SUPERVISOR NOTE    |  (a stamp beats the chicken)|
+ | BELT 1.4x          | (first 4 s of the  |  * new this hour            |
+ |                    |  hour only)        |                             |
+ |                    +--------------------+                             |
  |                      [L-SHIFT] - - - - - [R-SHIFT]   <- red line y=295|
  |                                 \ () /   fork hub at (480, 330)       |
  |                    /             |               \                    |
  |          +--------+         +---------+         +--------+            |
- |          | WINGS  |         | NUGGETS |         | DRUMS  |            |
- |          +--------+         +---------+         +--------+            |
+ |          | WINGS  |         |RED STAMP|         | DRUMS  |            |
+ |          +--------+         +---------+         | NUGGETS|            |
  +-----------------------------------------------------------------------+ y=540
      left bin (190,460)      centre bin (480,480)     right bin (770,460)
 ```
 
-The open route is drawn in yellow: its gate box, its chute outline, its bin outline and the arrow on the fork hub.
-Bin labels are generated from the rules, so if the rules change, the bins relabel themselves.
+The open route is drawn in yellow: its gate box, chute outline, bin outline and the arrow on the fork hub. While a
+gate is swinging both gate boxes flash orange. Bin labels list everything that goes in that bin (up to three lines)
+and are rebuilt whenever the rules change.
 
-![Gameplay screenshot](images/gameplay.png)
+![A supervisor note at 3 AM](images/note.png)
+
+![Gameplay at 3 AM: a blue-stamped tray, two strikes](images/gameplay.png)
 
 ## 6. Core loop
 
 ```mermaid
 flowchart TD
-    A[Tray spawns at top of belt] --> B[Player reads the tray: wing, drumstick or nugget]
-    B --> C[Player recalls the rule for it]
+    A[Tray spawns at top of belt] --> B[Read the tray: kind, and stamp if any]
+    B --> C[Recall the current rule:<br/>stamp rule first, else kind rule]
     C --> D{Gate already set<br/>to that exit?}
-    D -- no --> E[Press Left or Right Shift]
+    D -- no --> E[Press Left or Right Shift<br/>early: the gate takes 0.12 s to swing]
     E --> D
     D -- yes --> F[Tray touches the red line:<br/>route is locked]
-    F --> G{Route matches rule?}
-    G -- yes --> H[Pay x multiplier<br/>combo + 1<br/>green outline, ding]
-    G -- no --> I[Strike<br/>combo reset<br/>red outline, buzz]
-    I --> J{Strikes = 3?}
-    J -- yes --> K[Sent home: game over]
-    J -- no --> L[Tray slides into the bin]
-    H --> L
-    L --> A
+    F --> G{Gate still swinging?}
+    G -- yes --> M[Missed: tray falls off the line<br/>strike]
+    G -- no --> H{Exit matches the rule?}
+    H -- yes --> I[Pay x multiplier<br/>combo + 1, green outline, ding]
+    H -- no --> J[Wrong: strike<br/>combo reset, red outline, buzz]
+    M --> K{3 strikes this hour?}
+    J --> K
+    K -- yes --> L[Sent home: game over]
+    K -- no --> N[Tray goes to its bin or the floor]
+    I --> N
+    N --> A
 ```
 
 Several trays are on the belt at once, so the real rhythm is: set the gate for the front tray, then look up at the
@@ -111,21 +119,19 @@ next one while the front tray is still travelling.
 
 ### 7.1 Route model
 
-The fork has three exits: `left`, `center` (straight on) and `right`. The two gates are not independent. The game
-stores a single `route`:
+The fork has three exits: `left`, `center` (straight on) and `right`. The game stores a single `route`:
 
 - Both gates closed means `route = "center"`: trays go straight.
-- Left gate open means `route = "left"`.
-- Right gate open means `route = "right"`.
+- Left gate open means `route = "left"`. Right gate open means `route = "right"`.
 
-Both gates can never be open at once. That avoids the question of where a tray goes when both are open, and it keeps
-"both keys together" free for the emergency stop.
+Both gates can never be open at once. That avoids the question of where a tray goes when both are open, and keeps
+"both keys together" free for the emergency stop. The gates close at the start of every hour.
 
 ### 7.2 Gate state machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Center: clock in
+    [*] --> Center: hour starts
     Center --> Left: Left Shift
     Left --> Center: Left Shift
     Center --> Right: Right Shift
@@ -140,38 +146,47 @@ stateDiagram-v2
 | left | center | right |
 | right | left | center |
 
-The rule fits in one line: `route = "center" if route == side else side`.
+The rule fits in one line: `route = "center" if route == side else side`. Every route is one press away from every
+other route, so the player never needs two presses to reach a target, which is what makes "two presses at once"
+safe to read as an emergency stop.
 
-Every route is one press away from every other route. The player never needs two presses to reach a target, which is
-what makes "two presses in a row" safe to read as an emergency stop.
+### 7.3 Gate swing and missed trays
+
+Every toggle starts the gate swinging for `swing_seconds` (0.12 s); both gate boxes flash orange while it swings. A
+tray that reaches the red line while the gate is swinging is **missed**: it tumbles off the line to the floor and is a
+strike, whatever the gate was swinging towards.
+
+- This is the brief's "missed tray". A press made in good time never misses; a panicked last-frame press does.
+- 0.12 s is shorter than the both-Shifts window, so it never adds to the emergency stop's timing (tested).
+- The swing keeps running during an emergency stop, but nothing reaches the red line then.
 
 ## 8. Emergency stop
 
 ### 8.1 Rules
 
 - Pressing **both Shifts within 0.15 s** of each other (`ShiftState.BOTH_SHIFT_WINDOW`) is an emergency stop.
-- The belt halts for `estop_seconds` (2.5 s). Trays freeze, no new trays spawn, the speed ramp pauses.
+- For `estop_seconds` (2.5 s) the belt halts, trays freeze, no new trays spawn, the speed ramp pauses and **the hour
+  clock stops** (both the `HourTimer` and the clock on the HUD).
 - The gates still work during the stop. That is the point: it buys time to fix the gate.
-- `estops` (3) per night. With none left, the double press is refused (buzz) and nothing else happens.
+- `estops` (3) per **night**, not per hour. With none left, the double press is refused (buzz) and nothing happens.
 - A double press during a stop is refused and does not use a charge, so stops cannot be stacked.
-- The double press never changes the gate. The first key of the pair toggled a gate before the game knew a second
-  key was coming, so that toggle is undone.
+- The double press never changes the gate: the first key's toggle is undone.
 
 ### 8.2 Detection logic
 
 ```mermaid
 flowchart TD
     P[Shift key down, side = left or right] --> Q{Other side pressed<br/>within 0.15 s?}
-    Q -- no --> R[Remember route as route_before<br/>toggle the gate<br/>result: toggle, gate click]
+    Q -- no --> R[Remember route as route_before<br/>toggle the gate, start the swing<br/>result: toggle, gate click]
     Q -- yes --> S[route = route_before<br/>undo the first key's toggle<br/>forget both press times]
     S --> T{E-stops left > 0<br/>and not already stopped?}
     T -- yes --> U[e-stops - 1<br/>stop for 2.5 s<br/>result: estop]
     T -- no --> V[result: denied, buzz]
 ```
 
-Press times are measured on the game clock (`ShiftState.clock`, which advances with each physics step), not the wall
-clock, so the logic behaves the same in tests that run faster than real time. Forgetting both press times after a
-pair means that a quick third press starts fresh and is not paired again.
+Press times are measured on the game clock (`ShiftState.clock`), not the wall clock, so the logic behaves the same in
+tests that run faster than real time. Forgetting both press times after a pair means a quick third press starts
+fresh.
 
 ### 8.3 Edge cases
 
@@ -183,20 +198,27 @@ pair means that a quick third press starts fresh and is not paired again.
 | Both again during a stop | Refused, no charge used, gate unchanged. |
 | Both with 0 charges left | Refused, buzz, gate unchanged. |
 | Holding a Shift | Echo events ignored, so it counts as one press. |
-| Shift after game over | Ignored. Only Enter or Space do anything. |
+| Shift on a tally, game over or win screen | Ignored. Only Enter or Space do anything. |
 
 ## 9. Trays
 
-### 9.1 Types
+### 9.1 Kinds and stamps
 
-| Kind | Drawing | Colour | Default rule |
+| Tray | Drawing | Colour | Appears |
 |---|---|---|---|
-| Wing | Orange angular wing shape | `#ffa726` | LEFT |
-| Drumstick | Brown ball on a bone | `#a1653a` | RIGHT |
-| Nugget | Three small yellow circles | `#ffd54f` | STRAIGHT |
+| Wing | Orange angular wing | `#ffa726` | All night |
+| Drumstick | Brown ball on a bone | `#a1653a` | All night |
+| Nugget | Three small yellow circles | `#ffd54f` | All night |
+| Tender | Two long golden strips | `#d4a373` | From 1 AM (a note adds it) |
+| Red stamp | Round red badge with "R", top right | `#e53935` | 12 AM to 5 AM |
+| Blue stamp | Diamond blue badge with "B", top right | `#1e88e5` | From 3 AM |
 
-The three kinds differ in shape as well as colour, so they can be told apart without colour vision. Each kind is
-picked uniformly at random when a tray spawns.
+Kinds and stamps differ in shape as well as colour, so they can be told apart without colour vision. A new tray's
+kind is picked uniformly from the kinds that currently have a rule. While any stamp rule exists, `stamp_chance` (30%)
+of trays get a stamp, picked uniformly from the stamps that have a rule.
+
+**A stamp rule beats the kind rule.** A red-stamped wing goes where red stamps go. A tray with no stamp, or with a
+stamp that has no rule, goes where its kind goes.
 
 ### 9.2 Tray lifecycle
 
@@ -204,24 +226,24 @@ picked uniformly at random when a tray spawns.
 stateDiagram-v2
     [*] --> OnBelt: spawn at (480, -30), path = [fork]
     OnBelt --> Committed: front edge touches the Fork Area2D (red line)
-    Committed --> InChute: route appended to path, scored, outlined green or red
-    InChute --> Binned: reaches the bin point
-    Binned --> [*]: thunk, queue_free
-    OnBelt --> OnBelt: emergency stop (frozen)
-    InChute --> InChute: emergency stop (frozen)
+    Committed --> InChute: scored ok or wrong, outlined green or red
+    Committed --> Falling: gate was swinging: missed, outlined red
+    InChute --> Binned: reaches the bin point, thunk
+    Falling --> [*]: off the bottom of the screen
+    Binned --> [*]: queue_free
+    OnBelt --> [*]: hour ends (cleared, not scored)
 ```
 
-A tray is scored exactly once. `Tray.routed` is set when it enters the Fork area and the handler ignores routed trays.
+A tray is scored exactly once (`Tray.routed` guards the handler). An emergency stop freezes trays in every state.
+When the hour ends, trays still on the belt are cleared without being scored, so the last seconds of an hour can
+never cost a strike.
 
 ### 9.3 The commit point (the red line)
 
 The Fork is an `Area2D` with an 80 x 20 rectangle centred at (480, 305), so its top edge is at y = 295. A tray is
-52 x 36. When the tray's front edge touches y = 295 (tray centre at y = 277), Godot reports the overlap and the tray is
-routed to whatever the gate is set to at that moment. The red dashed line is drawn exactly at y = 295
-(`Belt.DECISION_Y`), so what the player sees matches what the physics does.
-
-After commit the tray keeps moving to the fork point and then down its chute. Changing the gate after the red line
-only affects the next tray.
+52 x 36. When its front edge touches y = 295 (tray centre at y = 277), Godot reports the overlap and the tray is routed
+by whatever the gate says at that moment. The red dashed line is drawn exactly at y = 295 (`Belt.DECISION_Y`), so
+what the player sees matches what the physics does.
 
 ## 10. Scoring
 
@@ -231,13 +253,16 @@ only affects the next tray.
 correct sort:  combo      = combo + 1
                multiplier = min(1 + floor(combo / 5), 5)
                pay        = pay + pay_per_tray * multiplier
-wrong sort:    combo      = 0
-               strikes    = strikes + 1          (pay is not taken away)
-accuracy     = sorted_ok / sorted_total          (0 when nothing sorted)
-sent home    = strikes >= strikes_allowed
+wrong/missed:  combo      = 0
+               strikes    = strikes + 1           (pay is never taken away)
+end of hour:   bonus      = clean_hour_bonus if strikes == 0 and at least one tray sorted, else 0
+               pay        = pay + bonus
+accuracy     = correct / sorted over the night    (0 when nothing sorted)
+sent home    = strikes this hour >= strikes_allowed
 ```
 
-The multiplier is computed after the combo goes up, so the 5th correct tray in a row is the first one paid at x2.
+The multiplier is computed after the combo goes up, so the 5th correct tray in a row is the first paid at x2.
+**The combo carries across hours**; strikes do not.
 
 ### 10.2 Multiplier table (pay_per_tray = 10)
 
@@ -247,78 +272,134 @@ The multiplier is computed after the combo goes up, so the 5th correct tray in a
 | 5 to 9 | x2 | $20 |
 | 10 to 14 | x3 | $30 |
 | 15 to 19 | x4 | $40 |
-| 20+ | x5 (cap, `MAX_MULTIPLIER`) | $50 |
+| 20+ | x5 (cap) | $50 |
 
-Worked example: four wings correct ($10 each = $40), fifth wing correct ($20, total $60), then a nugget sent left:
-strike, combo 0, pay stays $60, accuracy 5/6 = 83%. This exact sequence is a test.
-
-A perfect run of n trays earns `10 * (4*1 + 5*2 + 5*3 + 5*4) = $490` for the first 19, then $50 per tray. The
-headless autoplayer sorts 109 trays in 150 s for $4,990.
+Worked example (a test): four wings right ($40), a fifth ($20, total $60), then a nugget sent left: strike, combo 0,
+pay stays $60, accuracy 5/6 = 83%. A perfect night is about 405 trays: $490 for the first 19, then $50 each, plus
+8 clean-hour bonuses of $100: the headless autoplayer earns **$20,590**.
 
 ### 10.3 Strikes
 
-- A strike is a tray sorted to the wrong exit.
-- `strikes_allowed` (3) strikes and you are sent home, immediately, mid-belt.
-- Phase 1 has no hours, so strikes last the whole run. In Phase 2 the count resets each hour ("3 strikes in one hour").
-- A "missed tray" cannot happen in Phase 1: every tray goes down some exit. See section 15.6.
+- A strike is a tray sent to the wrong exit, or a tray that misses a swinging gate.
+- 3 strikes **in one hour** and you are sent home, immediately. Strikes reset at the start of every hour.
 
-## 11. Difficulty ramp
+## 11. The night
 
-Phase 1 is one endless shift that keeps getting faster until you are sent home.
+### 11.1 Hours and clock
+
+Eight hours, 10 PM to 6 AM, each `hour_seconds` (75 s) of play. The HUD clock runs from `10:00 PM` to `5:59 AM`,
+one in-game minute per 1.25 s. The clock, the `HourTimer` and the belt ramp all stop during an emergency stop.
+
+Each hour starts the same way: the belt clears, the gates close, strikes reset, the supervisor's note applies and is
+shown on a sticky note for `note_seconds` (4 s), and the first tray spawns when the note goes away.
+
+### 11.2 Belt per hour
+
+Speed and interval slide linearly from the hour's first to its second value:
 
 ```
-speed(t)    = min(start_speed + speed_ramp * t, max_speed)             px/s
-interval(t) = max(start_interval - interval_ramp * t, min_interval)    s between trays
+p           = hour_elapsed / hour_seconds          (0 to 1, not counting emergency stops)
+speed(p)    = lerp(speed[0], speed[1], p)          px/s
+interval(p) = lerp(interval[0], interval[1], p)    s between trays
 ```
 
-With the shipped numbers (110 + 1.5t up to 280; 2.4 - 0.013t down to 0.9):
-
-| Time on shift | Belt speed | Belt x | Seconds between trays | Gap between trays | Time from spawn to red line |
+| Hour | Speed (px/s) | Seconds between trays | Gap between trays | Time from spawn to red line | Trays (approx.) |
 |---|---|---|---|---|---|
-| 0 s | 110 px/s | 1.0x | 2.40 s | 264 px | 2.8 s |
-| 30 s | 155 px/s | 1.4x | 2.01 s | 312 px | 2.0 s |
-| 60 s | 200 px/s | 1.8x | 1.62 s | 324 px | 1.5 s |
-| 90 s | 245 px/s | 2.2x | 1.23 s | 301 px | 1.3 s |
-| 115 s+ | 280 px/s | 2.5x | 0.90 s | 252 px | 1.1 s |
+| 10 PM | 100 to 150 | 2.6 to 2.0 | 260 to 300 px | 3.1 to 2.0 s | 31 |
+| 11 PM | 130 to 180 | 2.2 to 1.7 | 286 to 306 px | 2.4 to 1.7 s | 36 |
+| 12 AM | 150 to 200 | 1.9 to 1.5 | 285 to 300 px | 2.0 to 1.5 s | 42 |
+| 1 AM | 170 to 220 | 1.7 to 1.3 | 289 to 286 px | 1.8 to 1.4 s | 47 |
+| 2 AM | 190 to 240 | 1.5 to 1.2 | 285 to 288 px | 1.6 to 1.3 s | 53 |
+| 3 AM | 210 to 255 | 1.3 to 1.05 | 273 to 268 px | 1.5 to 1.2 s | 60 |
+| 4 AM | 225 to 270 | 1.15 to 0.95 | 259 to 257 px | 1.4 to 1.1 s | 68 |
+| 5 AM | 240 to 280 | 1.05 to 0.9 | 252 px | 1.3 to 1.1 s | 73 |
 
 ```mermaid
 xychart-beta
-    title "Belt speed over the shift (px/s)"
-    x-axis "seconds on shift" [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150]
+    title "Belt speed through the night (px/s, start and end of each hour)"
+    x-axis ["10PM", "", "11PM", "", "12AM", "", "1AM", "", "2AM", "", "3AM", "", "4AM", "", "5AM", ""]
     y-axis "px/s" 0 --> 300
-    line [110, 132.5, 155, 177.5, 200, 222.5, 245, 267.5, 280, 280, 280]
+    line [100, 150, 130, 180, 150, 200, 170, 220, 190, 240, 210, 255, 225, 270, 240, 280]
 ```
 
-- **Gap** is `speed x interval` at the moment a tray spawns. All trays on the belt move at the same speed, so gaps
-  never shrink after spawning. The gap is always far above the 36 px tray height, so trays never overlap (tested).
-- **Seconds between trays** is the real decision budget: it is the time between one tray locking at the red line
-  and the next one arriving there. At full speed that is 0.9 s, kept at 0.6 s or more by a test.
-- **Time from spawn to red line** is the 307 px from spawn to commit divided by speed. It is how long the player can
-  read a tray before it locks.
-- During an emergency stop neither the speed nor the interval ramps, and the spawn timer is paused.
+- **Gap** is `speed x interval` when a tray spawns. All trays move at the same speed, so gaps never shrink after
+  spawning, and every gap is far above the 36 px tray height (tested for every hour).
+- **Seconds between trays** is the decision budget per tray. It never drops below 0.9 s (tested: at least 0.6 s).
+- **Time from spawn to red line** is the 307 px from spawn to commit divided by speed: how long you can read a tray.
+- Each hour starts a little slower than the last one ended, so a new rule arrives with a moment to adjust.
 
-## 12. Game states
+## 12. Supervisor notes
 
-### 12.1 Phase 1 state machine
+### 12.1 Note types
+
+A note is data in `hours[i].note`. After the first hour, every note changes **exactly one rule** (tested):
+
+| Field | Effect | Example |
+|---|---|---|
+| `route` `{kind: exit}` | Moves a kind to an exit. A kind with no rule yet starts spawning. | `{"nugget": "right"}`, `{"tender": "left"}` |
+| `stamp` `{colour: exit}` | Stamped trays of that colour go to that exit, beating their kind. | `{"red": "center"}` |
+| `stamp` `{colour: null}` | Cancels a stamp rule. Those stamps stop appearing. | `{"red": null}` |
+| `swap` `[exit, exit]` | Every kind and stamp going to one exit now goes to the other. | `["left", "right"]` |
+
+When a note applies, the rules board marks every rule it changed with `*` (a cancelled stamp is listed as
+"cancelled"), and the bins relabel. Notes change a copy of the rules, never the data a new night starts from (tested).
+
+### 12.2 The night's rules, hour by hour
+
+| Hour | Supervisor note | LEFT bin | STRAIGHT bin | RIGHT bin |
+|---|---|---|---|---|
+| 10 PM | "Wings LEFT, drumsticks RIGHT, nuggets STRAIGHT on." (no change) | wings | nuggets | drumsticks |
+| 11 PM | "Nuggets now go RIGHT. Same box as the drumsticks." | wings | (empty) | drumsticks, nuggets |
+| 12 AM | "Red-stamped trays go STRAIGHT to the bin." | wings | RED STAMP | drumsticks, nuggets |
+| 1 AM | "Tenders are on tonight. Tenders go LEFT." | wings, tenders | RED STAMP | drumsticks, nuggets |
+| 2 AM | "Maintenance swapped the chutes." | drumsticks, nuggets | RED STAMP | wings, tenders |
+| 3 AM | "Blue stamp means VIP order. Blue goes LEFT." | BLUE STAMP, drumsticks, nuggets | RED STAMP | wings, tenders |
+| 4 AM | "Wing shortage upstairs. Wings go STRAIGHT now." | BLUE STAMP, drumsticks, nuggets | RED STAMP, wings | tenders |
+| 5 AM | "Red stamps were a printer error." | BLUE STAMP, drumsticks, nuggets | wings | tenders |
+
+The 2 AM swap is the hardest moment: every habit built so far is reversed. The play test replays this exact sequence
+and checks the board marks each new rule.
+
+### 12.3 Rule lookup
+
+```mermaid
+flowchart LR
+    T[Tray at the red line] --> S{Has a stamp<br/>with a rule?}
+    S -- yes --> SR[Exit = stamp rule]
+    S -- no --> KR[Exit = kind rule]
+    SR --> C{Gate route = exit?}
+    KR --> C
+    C -- yes --> OK[ok]
+    C -- no --> W[wrong]
+```
+
+## 13. Game states
+
+### 13.1 State machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> MENU: game opens
-    MENU --> PLAYING: Enter or Space
-    PLAYING --> GAME_OVER: strikes = strikes_allowed
-    GAME_OVER --> PLAYING: Enter or Space
+    MENU --> PLAYING: Enter / Space (new night, 10 PM)
+    PLAYING --> HOUR_END: HourTimer times out
+    PLAYING --> GAME_OVER: 3 strikes this hour
+    HOUR_END --> PLAYING: Enter (next hour)
+    HOUR_END --> WIN: Enter after the 5 AM hour
+    GAME_OVER --> MENU: Enter
+    WIN --> MENU: Enter
 ```
 
-| State | On enter | Input accepted | Per physics frame | Leaves when |
+| State | On enter | Input | Per physics frame | Leaves when |
 |---|---|---|---|---|
-| MENU | Show the title, controls and "Press Enter to clock in" over a dim overlay | Enter, Space | Nothing | Enter or Space |
-| PLAYING | Free old trays, `logic = ShiftState.new(cfg)`, unpause and spawn the first tray, hide the overlay | Left and Right Shift | Tick the clock, move trays, bin finished trays, update HUD | 3rd strike |
-| GAME_OVER | Stop the spawn timer, show pay, trays sorted, accuracy and best combo | Enter, Space | Nothing (belt frozen) | Enter or Space |
+| MENU | New `ShiftState`, clear trays, show title and controls | Enter, Space | Nothing | Enter |
+| PLAYING | Next hour: clear belt, close gates, reset strikes, apply note, show note card, start `HourTimer` (75 s) and the first spawn after 4 s | Shifts | Tick clock and ramp, move trays, pause timers while stopped, hide the note after 4 s | Hour timer, or 3rd strike |
+| HOUR_END | Clear belt, `end_hour()` adds the clean bonus, show the tally | Enter, Space | Nothing | Enter |
+| GAME_OVER | Stop timers, show "SENT HOME at 1:23 AM", pay, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
+| WIN | Stop timers, show total pay, trays, accuracy, best combo | Enter, Space | Nothing | Enter |
 
-Starting a shift builds a brand-new `ShiftState`, so nothing from the last run can leak into the next one: there is
-no reset function with a field to forget.
+Every new night builds a brand-new `ShiftState` in MENU, so nothing from the last night can leak into the next one.
 
-### 12.2 One physics frame
+### 13.2 One physics frame
 
 ```mermaid
 sequenceDiagram
@@ -330,198 +411,100 @@ sequenceDiagram
 
     Input->>Main: Shift key down (any time between frames)
     Main->>Logic: press_shift(side)
-    Logic-->>Main: toggle / estop / denied
+    Logic-->>Main: toggle (swing starts) / estop / denied
     Main->>Main: play sound, refresh HUD and gates
 
     Note over Main: _physics_process(delta), PLAYING only
     Main->>Logic: tick(delta)
     Logic-->>Main: distance to move (0 while stopped)
-    Main->>Main: pause spawn timer if stopped
+    Main->>Main: pause spawn and hour timers if stopped, hide note after 4 s
     Main->>Tray: advance(distance) for each tray
     Tray-->>Main: true when the path is used up
     Main->>Main: thunk and free trays that reached their bin
 
     Note over Fork: physics server checks overlaps
     Fork->>Main: area_entered(tray)
-    Main->>Logic: sort(tray.kind) against current route
-    Logic-->>Main: correct or wrong
-    Main->>Tray: append exit to path, outline green or red
-    Main->>Main: ding or buzz, game over if sent home
+    Main->>Logic: sort(kind, stamp)
+    Logic-->>Main: ok / wrong / missed
+    Main->>Tray: path to bin (or floor if missed), outline green or red
+    Main->>Main: ding / buzz / whistle, game over if sent home
 ```
 
-## 13. Audio hooks
+## 14. Audio hooks
 
-All sounds go through one autoload, `Sfx.play(name)`. Phase 1 generates short square-wave beeps in code so every hook
-is audible. Phase 3 replaces them with real sounds behind the same names, without touching any caller.
+All sounds go through `Sfx.play(name)`. Phase 2 still uses generated placeholder beeps; Phase 3 replaces them
+behind the same names.
 
-| Hook | Plays when | Placeholder |
-|---|---|---|
-| `gate_click` | A Shift toggles a gate | 1400 Hz, 0.03 s |
-| `ding` | Correct sort | 990 Hz, 0.12 s |
-| `strike_buzz` | Wrong sort, or an emergency stop refused | 80 Hz, 0.35 s |
-| `tray_thunk` | A tray lands in a bin | 110 Hz, 0.09 s |
-| `estop` | Emergency stop starts | 300 Hz, 0.5 s |
+| Hook | Plays when |
+|---|---|
+| `gate_click` | A Shift toggles a gate |
+| `ding` | Correct sort |
+| `strike_buzz` | Wrong sort, or an emergency stop refused |
+| `missed` | A tray misses a swinging gate |
+| `tray_thunk` | A tray lands in a bin |
+| `estop` | Emergency stop starts |
+| `clock_in` | An hour starts; also the 6 AM win |
+| `hour_end` | An hour ends |
 
-## 14. Tuning knobs
+## 15. Tuning knobs
 
 | Knob | Where | Value | Effect |
 |---|---|---|---|
-| `routes` | rules.json | wing left, drumstick right, nugget center | Which exit each kind belongs in. Kinds listed here are the kinds that spawn. |
+| `routes` | rules.json | wing left, drumstick right, nugget center | Starting rules; the kinds listed spawn. |
+| `hours[i].speed` / `interval` | rules.json | see 11.2 | Belt range for each hour. |
+| `hours[i].note` | rules.json | see 12.2 | The supervisor note and its one rule change. |
+| `hour_seconds` | rules.json | 75 | Length of an hour. |
+| `note_seconds` | rules.json | 4 | How long the note shows before the first tray. |
 | `pay_per_tray` | rules.json | 10 | Base pay per correct tray. |
-| `strikes_allowed` | rules.json | 3 | Strikes before you are sent home. |
-| `estops` | rules.json | 3 | Emergency stops per night. |
-| `estop_seconds` | rules.json | 2.5 | Length of a stop. |
-| `belt.start_speed` / `max_speed` | rules.json | 110 / 280 px/s | Belt speed range. |
-| `belt.speed_ramp` | rules.json | 1.5 px/s per s | How fast the belt speeds up. |
-| `belt.start_interval` / `min_interval` | rules.json | 2.4 / 0.9 s | Time between trays. |
-| `belt.interval_ramp` | rules.json | 0.013 s per s | How fast trays bunch up. |
+| `clean_hour_bonus` | rules.json | 100 | Bonus for an hour with no strikes. |
+| `strikes_allowed` | rules.json | 3 | Strikes in one hour before you are sent home. |
+| `estops` / `estop_seconds` | rules.json | 3 / 2.5 | Emergency stops per night and their length. |
+| `stamp_chance` | rules.json | 0.3 | Share of trays stamped while a stamp rule exists. |
+| `swing_seconds` | rules.json | 0.12 | Gate swing time; a tray arriving mid-swing is missed. |
 | `BOTH_SHIFT_WINDOW` | shift_state.gd | 0.15 s | How close two Shifts must be to count as "both". |
 | `COMBO_STEP` / `MAX_MULTIPLIER` | shift_state.gd | 5 / 5 | Combo curve. |
-| `Belt.SPAWN`, `FORK`, `EXITS` | belt.gd | see section 5 | Layout. |
+| `Belt.SPAWN`, `FORK`, `EXITS`, `FLOOR` | belt.gd | see section 5 | Layout. |
 
-Full field reference: [data-format.md](data-format.md).
-
----
-
-## 15. The full night (Phases 2 to 4, proposal)
-
-### 15.1 Night timeline
-
-Eight in-game hours, each `hour_seconds` long (default 75 s, configurable). The belt speed ramps within each hour
-and the starting speed steps up from hour to hour.
-
-```mermaid
-gantt
-    title One night on the line (each hour is 75 s of play)
-    dateFormat HH:mm
-    axisFormat %H:%M
-    section Hours
-    10pm (rules as on the board)  :h1, 22:00, 1h
-    11pm                          :h2, after h1, 1h
-    12am                          :h3, after h2, 1h
-    1am                           :h4, after h3, 1h
-    2am (strange trays begin)     :crit, h5, after h4, 1h
-    3am                           :crit, h6, after h5, 1h
-    4am                           :crit, h7, after h6, 1h
-    5am                           :crit, h8, after h7, 1h
-```
-
-### 15.2 Full state machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> MENU
-    MENU --> PLAYING: Enter (hour 1 after its supervisor note)
-    PLAYING --> HOUR_END: hour Timer times out
-    PLAYING --> GAME_OVER: 3 strikes this hour
-    HOUR_END --> WIN: that was the 5am hour
-    HOUR_END --> SHOP: Enter
-    SHOP --> PLAYING: buy one item or skip, then the next hour's supervisor note
-    GAME_OVER --> MENU: Enter
-    WIN --> MENU: Enter
-```
-
-| State | Shows | Input |
-|---|---|---|
-| MENU | Title screen (Phase 3 art) | Enter / Space |
-| PLAYING | The belt. At the start of each hour a supervisor note is shown on the belt for a few seconds while the belt runs slowly. | Shifts |
-| HOUR_END | Pay tally for the hour: trays sorted, correct, strikes, combo bonus, hour pay, night total | Enter / Space |
-| SHOP | One item to buy with pay, or skip | Shifts pick (Left = previous, Right = next), Enter buys |
-| GAME_OVER | Sent home, with night totals so far | Enter / Space |
-| WIN | 6am: total pay, accuracy, best combo, and the ending | Enter / Space |
-
-The shop is browsed with the Shift keys so that the "Shift keys only" rule holds everywhere outside plain menus.
-
-### 15.3 Supervisor notes (rule changes)
-
-Each hour adds or changes exactly one rule. A note is data, so new notes need no code:
-
-```json
-"hours": [
-  { "start_speed": 110, "max_speed": 180, "note": null },
-  { "start_speed": 130, "max_speed": 200, "note": { "text": "Nuggets now go RIGHT.", "set_route": { "nugget": "right" } } },
-  { "start_speed": 140, "max_speed": 220, "note": { "text": "Red-stamped trays go in the bin.", "add_stamp": { "stamp": "red", "route": "center", "chance": 0.25 } } }
-]
-```
-
-| Note type | Effect | Example |
-|---|---|---|
-| `set_route` | Moves a kind to a different exit | "Nuggets now go RIGHT" |
-| `add_stamp` | Some trays get a stamp; a stamped tray follows the stamp's rule instead of its kind's | "Red-stamped trays go to the bin" |
-| `swap` | Two exits swap contents | "Wings and drumsticks have swapped bins" |
-| `add_kind` | A new kind starts spawning | "Tenders are on tonight. Tenders go LEFT." |
-
-Rule precedence when a tray matches several rules: stamp rule, then kind rule. The rules board and bin labels are
-regenerated from the active rules whenever a note applies.
-
-### 15.4 Pay tally (HOUR_END)
-
-```
-hour pay     = sum of tray pay this hour (already includes combo multipliers)
-clean bonus  = +$50 if 0 strikes this hour
-night total  = night total + hour pay + clean bonus
-```
-
-### 15.5 Shop (Phase 3)
-
-One purchase between hours. Prices are placeholders to balance in playtests.
-
-| Item | Price | Effect |
-|---|---|---|
-| Coffee | $60 | Next hour the belt starts and tops out 20% slower |
-| Mate's Help | $120 | Remove one strike (carries into the next hour) |
-| Earplugs | $40 | Next hour, distractions (radio, flicker, Phase 4) are blocked |
-
-### 15.6 Missed trays (Phase 2)
-
-Phase 1 cannot miss a tray. Phase 2 adds the bin rule, and with it a way to miss: if a tray crosses the red line in
-the 0.15 s after a Shift press and the press turns out to be half of an emergency stop, the gate snaps back. The
-proposal is to count a tray as **missed** (a strike) when it commits while the gates are moving: a short 0.1 s
-"swing" after each toggle during which the fork is neither open nor closed. That makes late presses visibly risky
-instead of silently wrong. To be decided in playtests (open question 1).
-
-### 15.7 The strange night (Phase 4, optional)
-
-From 2am, a few trays carry something no rule covers: a chicken in sunglasses and a trench coat, standing on the tray.
-No rule mentions them, so routing them never earns a strike. The lights flicker, and the radio between songs picks up
-clucking that sounds a lot like instructions ("...straight... the dock... 6am...").
-
-```mermaid
-flowchart TD
-    S[Strange tray reaches the red line] --> Q{Where did the player send it?}
-    Q -- STRAIGHT, to the loading dock --> F[Counted as freed]
-    Q -- LEFT or RIGHT, into the line --> B[Counted as boxed]
-    F --> N[Next strange tray]
-    B --> N
-    N --> E{6am}
-    E -- every strange tray freed --> SE[Secret ending: The Great Escape<br/>the trucks leave at dawn<br/>and the drivers are chickens]
-    E -- otherwise --> NE[Normal ending: payslip and the bus home]
-```
-
-Earplugs (from the shop) mute the radio hints, which makes the secret ending harder to find but does not block it.
-
-### 15.8 Juice (Phase 3)
-
-| Event | Feedback |
-|---|---|
-| Correct sort | Small particle puff from the bin, "+$20" popup that floats up |
-| Combo reaches 5, 10, 15, 20 | Bigger popup ("x3!"), short pitch-up on the ding |
-| Strike | Screen shake (0.2 s, 6 px), red flash on the strikes counter |
-| Emergency stop | Belt slats stop, hazard light sweeps, siren |
-| Sent home | Supervisor face pops up with a stamp: "GO HOME" |
+Field reference: [data-format.md](data-format.md).
 
 ## 16. Known issues and risks
 
 | Issue | Impact | Mitigation |
 |---|---|---|
-| Windows Sticky Keys | Pressing Shift 5 times in a row opens the Sticky Keys prompt on Windows desktop builds. | Players turn off the shortcut (README). The browser build has the same issue on Windows. Phase 3: show a hint on the title screen. |
-| Shift location not reported | Some keyboards, remote desktops and browsers report Shift with no location; every press then acts as Right Shift. | Tracked as a bug. Possible fallback: physical_keycode or a "press Left Shift" calibration step. |
-| Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start` is on, and Enter on the menu needs a click or keypress on the page anyway. |
-| Random streaks | Uniform random kinds can produce runs (5 wings in a row). | Fine for Phase 1. Phase 2 can switch to a shuffled bag per hour if streaks feel unfair. |
+| Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | README tells players to turn off the shortcut. Phase 3 title screen says so too (#21). |
+| Shift location not reported | Some setups report Shift with no location; every press acts as Right Shift (#22). | Possible fallback: physical_keycode, or a "press Left Shift" check. |
+| Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start`; Enter on the menu needs a click or key on the page anyway. |
+| Random streaks | Uniform random kinds can produce runs. | Fine so far; a shuffled bag per hour if playtests say it feels unfair. |
 
-## 17. Open questions
+---
 
-1. Should a tray that commits while a gate is mid-swing be a "missed tray" strike (section 15.6)?
-2. Should strikes reset each hour (as the brief says) or decay by one per hour? Reset is simpler to explain.
-3. Should the emergency stop be refunded if no tray was near the red line? (Prevents wasting it by accident.)
-4. Shop browsing with Shifts or with Enter only? Shifts keeps the theme; Enter-only is simpler.
+## 17. Next: Phases 3 and 4 (proposal)
+
+### 17.1 Shop (Phase 3)
+
+After each hour's tally (not after 5 AM), spend pay on one item or skip. Browse with the Shift keys, buy with Enter.
+
+| Item | Effect |
+|---|---|
+| Coffee | Next hour the belt runs 20% slower and trays come 20% less often |
+| Mate's Help | Your mate covers your next strike (the tray still doesn't pay) |
+| Earplugs | Next hour, the PA announcements are blocked |
+
+### 17.2 Distractions and juice (Phase 3)
+
+From 12 AM the factory PA interrupts with announcements: a banner over the top of the belt that hides incoming trays
+for a few seconds. Earplugs block it. Juice: pay popups, combo popups, particle puffs at the bins, screen shake on
+strikes, a hazard flash during emergency stops, synthesized sounds, and a title screen with a chicken in a hard hat.
+
+### 17.3 The strange night (Phase 4, optional)
+
+From 2 AM a few trays carry a chicken in sunglasses and a trench coat. No rule covers them, so routing them never
+costs a strike. The lights flicker and the radio picks up clucking that sounds like instructions ("...straight...
+the dock... 6 AM..."). Send every one straight to the loading dock for the secret ending (The Great Escape: the trucks
+leave at dawn, driven by chickens); otherwise the normal ending, a payslip and the bus home.
+
+## 18. Open questions
+
+1. Should the emergency stop be refunded if no tray was near the red line? (Prevents wasting it by accident.)
+2. Is 0.12 s of gate swing noticeable enough, or should missed trays get a bigger visual (a wobble on the gate)?
+3. Should the 2 AM swap get a longer note time? It reverses every habit at once.

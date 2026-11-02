@@ -6,6 +6,16 @@ All notable changes to Cluck Shift are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Phase 2: the whole night.** Eight 75-second hours from 10 PM to 6 AM on an `HourTimer`, with the clock on the
+  HUD. Each hour has its own belt (speed and interval slide from the hour's first to its second value, and every hour
+  starts faster). Strikes reset every hour; pay, combo and emergency stops carry over. An hour ends in a tally with a
+  $100 clean-hour bonus; surviving 5 AM shows the 6 AM win screen.
+- Supervisor notes: a sticky note at the start of every hour changes one rule, as data in `rules.json`: move a kind,
+  add or cancel a stamp rule, or swap two exits. Red and blue stamps beat the kind; tenders appear at 1 AM; the chutes
+  swap at 2 AM. The rules board and bin labels follow the rules and mark what changed.
+- Missed trays: a gate takes 0.12 s to swing, and a tray that reaches the red line mid-swing falls off the line as a
+  strike.
+- Tests: 132 rule checks and a whole-night playthrough of the real scene (62 checks).
 - **Phase 1: one playable packing line.** A conveyor feeds a three-way fork. Left Shift and Right Shift toggle the
   gates (one open at a time; both closed means straight on). Trays of wings, drumsticks and nuggets lock in when they
   touch the red line, are outlined green or red, and slide into their bin.
