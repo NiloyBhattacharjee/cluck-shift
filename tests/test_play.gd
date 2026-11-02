@@ -25,6 +25,7 @@ var bonuses := 0
 var stop_checked := false
 var missed_checked := false
 var puffs_seen := false
+var pay_popup_seen := false
 var pa_seen_by_hour := {}
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
 var failures := 0
@@ -62,6 +63,7 @@ func _night() -> void:
 				check(main.title.visible and not main.dim.visible and not main.shop.visible, "game opens on the title screen")
 				check(not _hum(), "no factory hum on the title")
 				_key(KEY_ENTER)
+				main.logic.rng.seed = 2026  # the same night every run; the hour's first tray spawns after the note
 		Main.State.PLAYING:
 			_night_playing()
 		Main.State.HOUR_END:
@@ -71,6 +73,9 @@ func _night() -> void:
 				bonuses += int(("Clean hour bonus: $%d" % int(cfg.clean_hour_bonus)) in main.message.text)
 				check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "%s: belt cleared at the end of the hour" % name)
 				check(not main.pa_banner.visible and not _hum(), "%s: PA banner and hum off on the tally" % name)
+				if main.logic.hour == 0:
+					check(puffs_seen, "a puff of feathers when a tray lands in its bin")
+					check(pay_popup_seen, "a +$ popup for a correct tray")
 				if main.logic.hour == int(cfg.pa.from_hour):
 					check(pa_seen_by_hour.get(main.logic.hour, false), "%s: the PA banner interrupted this hour" % name)
 				if main.logic.hour == int(cfg.pa.from_hour) + 1:
@@ -124,10 +129,8 @@ func _night_playing() -> void:
 			check(main.trays.get_child_count() == 0, "no trays while the note is up")
 		if in_state == int(cfg.note_seconds * FPS) + 5:
 			check(not main.note_card.visible, "the note goes away after note_seconds")
-		if not puffs_seen and main.juice.get_children().any(func(n): return n is CPUParticles2D):
-			puffs_seen = true
-			check(true, "a puff of feathers when a tray lands in its bin")
-			check(main.juice.get_children().any(func(n): return n is Label and n.text.begins_with("+$")), "a +$ popup for a correct tray")
+		puffs_seen = puffs_seen or main.juice.get_children().any(func(n): return n is CPUParticles2D)
+		pay_popup_seen = pay_popup_seen or main.juice.get_children().any(func(n): return n is Label and n.text.begins_with("+$"))
 		if not stop_checked:
 			_check_emergency_stop()
 			if not stop_checked:
