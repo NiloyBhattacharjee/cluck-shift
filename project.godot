@@ -5,6 +5,7 @@ config_version=5
 
 config/name="Cluck Shift"
 config/description="Night shift at a cartoon chicken packing line. The only controls are the Shift keys."
+run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
