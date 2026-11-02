@@ -8,6 +8,9 @@ const TONES := {  # name: [frequency Hz, seconds]
 	"ding": [990.0, 0.12],
 	"strike_buzz": [80.0, 0.35],
 	"estop": [300.0, 0.5],
+	"missed": [200.0, 0.3],
+	"clock_in": [660.0, 0.25],
+	"hour_end": [520.0, 0.6],
 }
 const RATE := 22050
 
