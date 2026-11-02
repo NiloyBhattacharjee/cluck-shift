@@ -9,6 +9,27 @@
   "clean_hour_bonus": 100,
   "stamp_chance": 0.3,
   "swing_seconds": 0.12,
+  "coffee_factor": 0.8,
+  "shop": [
+    { "id": "coffee", "name": "Coffee", "price": 150, "text": "Next hour the belt runs 20% slower and trays come 20% less often." },
+    { "id": "mate", "name": "Mate's Help", "price": 250, "text": "Your mate covers your next strike. Lasts until used." },
+    { "id": "earplugs", "name": "Earplugs", "price": 100, "text": "Next hour you can't hear the PA, so it can't distract you." }
+  ],
+  "pa": {
+    "from_hour": 2,
+    "every": [9, 16],
+    "seconds": 3.5,
+    "lines": [
+      "ATTENTION: will the owner of a blue hatchback please move it. It's blocking the fryer.",
+      "Reminder: the vending machine is NOT a chicken. Stop sorting it.",
+      "Night shift karaoke is cancelled. Again. You know who you are.",
+      "Whoever keeps clucking on the intercom: we can hear you.",
+      "Lost: one hard hat, chicken-sized. Answers to Gerald.",
+      "The fire drill is at 4 AM. It is not a real fire. Probably.",
+      "Please stop high-fiving the drumsticks.",
+      "Today's safety tip: the belt does not stop for snacks."
+    ]
+  },
   "hours": [
     {
       "speed": [100, 150], "interval": [2.6, 2.0],

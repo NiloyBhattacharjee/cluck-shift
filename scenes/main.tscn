@@ -2,6 +2,9 @@
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/belt.gd" id="2_belt"]
+[ext_resource type="Script" path="res://scripts/juice.gd" id="3_juice"]
+[ext_resource type="Script" path="res://scripts/title.gd" id="4_title"]
+[ext_resource type="Script" path="res://scripts/shop_view.gd" id="5_shop"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_fork"]
 size = Vector2(80, 20)
@@ -13,6 +16,13 @@ script = ExtResource("1_main")
 script = ExtResource("2_belt")
 
 [node name="Trays" type="Node2D" parent="."]
+
+[node name="Camera" type="Camera2D" parent="."]
+position = Vector2(480, 270)
+
+[node name="Juice" type="Node2D" parent="." node_paths=PackedStringArray("camera")]
+script = ExtResource("3_juice")
+camera = NodePath("../Camera")
 
 [node name="Fork" type="Area2D" parent="."]
 monitorable = false
@@ -63,6 +73,33 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
 
+[node name="PABanner" type="ColorRect" parent="HUD"]
+visible = false
+offset_left = 290.0
+offset_top = 28.0
+offset_right = 670.0
+offset_bottom = 118.0
+color = Color(0.1, 0.16, 0.36, 0.97)
+
+[node name="Text" type="Label" parent="HUD/PABanner"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 6.0
+offset_right = -12.0
+offset_bottom = -6.0
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Hazard" type="ColorRect" parent="HUD"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.9, 0.15, 0.1, 0.18)
+
 [node name="Dim" type="ColorRect" parent="HUD"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -74,3 +111,14 @@ anchor_bottom = 1.0
 theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="Shop" type="Control" parent="HUD"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("5_shop")
+
+[node name="Title" type="Control" parent="HUD"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("4_title")
