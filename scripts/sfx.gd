@@ -20,6 +20,9 @@ func _ready() -> void:
 	_add("cash", 0.5, func(t): return _noise() * _decay(t, 40.0) * 0.4 + (sin(TAU * 2093.0 * t) + sin(TAU * 2637.0 * t)) * _decay(t - 0.05, 9.0) * 0.3 * float(t > 0.05))
 	_add("select", 0.05, func(t): return sin(TAU * 1200.0 * t) * _decay(t, 70.0) * 0.5)
 	_add("pa_jingle", 0.9, func(t): return sin(TAU * (784.0 if t < 0.4 else 622.0) * t) * _decay(fmod(t, 0.4), 5.0) * 0.45)
+	_add("cluck", 0.26, func(t): return sin(TAU * _sweep(fmod(t, 0.13), 950.0, 480.0, 0.13)) * _decay(fmod(t, 0.13), 16.0) * 0.5)
+	_add("radio", 1.0, func(t): return (_noise() * 0.25 + sin(TAU * _sweep(fmod(t, 0.16), 820.0, 430.0, 0.16)) * _decay(fmod(t, 0.16), 14.0) * float(fmod(t, 0.32) < 0.16)) * _fade(t, 1.0) * 0.55)
+	_add("flicker", 0.16, func(t): return _square(100.0 * t) * (0.5 + 0.5 * _noise()) * _fade(t, 0.16) * 0.3)
 	_add("hum", 1.0, func(t): return (sin(TAU * 55.0 * t) + 0.5 * sin(TAU * 110.0 * t) + _noise() * 0.08) * 0.12, true)
 
 

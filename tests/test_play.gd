@@ -3,6 +3,7 @@ extends SceneTree
 ## 1) Full night: an autoplayer sets the right gate for every tray from 10 PM to 6 AM, uses one
 ##    emergency stop, buys Coffee, Mate's Help and Earplugs in the break room, makes one deliberate
 ##    mistake for the mate to cover, and must finish with no strikes and a clean-hour bonus every hour.
+##    From 2 AM it sends every strange tray straight on, so it must get the secret ending.
 ## 2) Idle night: a late Shift press makes a tray miss the gate; with no other presses the player
 ##    is sent home in the first hour, the belt freezes, and Enter goes back to the title for a clean start.
 ## Run: godot --headless --fixed-fps 60 -s tests/test_play.gd     (exit code 0 = all passed)
@@ -27,6 +28,10 @@ var missed_checked := false
 var puffs_seen := false
 var pay_popup_seen := false
 var pa_seen_by_hour := {}
+var strange_by_hour := {}  # hour -> strange trays seen on the belt
+var dark_by_hour := {}  # hour -> the lights went out
+var radio_seen := false
+var escape_popup_seen := false
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
 var failures := 0
 
@@ -80,6 +85,11 @@ func _night() -> void:
 					check(pa_seen_by_hour.get(main.logic.hour, false), "%s: the PA banner interrupted this hour" % name)
 				if main.logic.hour == int(cfg.pa.from_hour) + 1:
 					check(not pa_seen_by_hour.get(main.logic.hour, false), "%s: earplugs kept the PA quiet all hour" % name)
+				var strange_hour: bool = main.logic.hour >= int(cfg.strange.from_hour)
+				check(dark_by_hour.get(main.logic.hour, false) == strange_hour, "%s: the lights %s" % [name, "flickered" if strange_hour else "held steady"])
+				if not strange_hour:
+					check(not strange_by_hour.has(main.logic.hour), "%s: no strange trays yet" % name)
+				check(not main.lights_out and main.belt.modulate == Color.WHITE, "%s: lights back on for the tally" % name)
 				_key(KEY_ENTER)
 				if not main.logic.is_last_hour():
 					check(main.state == Main.State.SHOP, "%s: Enter goes to the break room" % name)
@@ -97,10 +107,23 @@ func _night() -> void:
 				for item: Dictionary in cfg.shop:
 					spent += int(item.price)
 				check(s.spent == spent and s.wallet() == s.pay - spent, "bought all three items: $%d spent" % spent)
-				check(main.message.text.begins_with("6 AM") and ("Take-home pay: $%d" % s.wallet()) in main.message.text, "the win screen shows earned, spent and take-home pay")
 				check(s.estops_left == int(cfg.estops) - 1, "exactly one emergency stop used")
+				var strange := 0
+				for h in strange_by_hour:
+					strange += strange_by_hour[h]
+				print("strange trays by hour: %s" % strange_by_hour)
+				check(strange > 0 and s.strange_seen == strange and s.escaped == strange, "every strange tray (%d) reached the red line and was let through" % strange)
+				check(escape_popup_seen, "a PSST... THANKS. popup when one escapes")
+				check(radio_seen, "the PA picked up clucking on the radio after 2 AM")
+				var e: Control = main.ending
+				check(e.visible and not main.dim.visible and e.secret and e.heading == cfg.endings.secret.title, "all strange trays let through: the secret ending (%s)" % e.heading)
+				check(["Take-home pay", "$%d" % s.wallet()] in e.slip and ["Break room", "-$%d" % s.spent] in e.slip, "the payslip shows earned, spent and take-home pay")
+				check(["Let through to the dock", "%d of %d" % [strange, strange]] in e.slip, "the payslip counts the strange trays let through")
+				s.escaped -= 1  # had one been caught
+				main._enter(Main.State.WIN)
+				check(not e.secret and e.heading == cfg.endings.normal.title and e.visible, "one strange tray caught: the normal ending (%s)" % e.heading)
 				_key(KEY_ENTER)  # handled at once, so main is already on the title
-				check(main.state == Main.State.MENU and main.title.visible, "Enter after the win goes back to the title")
+				check(main.state == Main.State.MENU and main.title.visible and not e.visible, "Enter after the win goes back to the title")
 				phase = "idle"
 
 
@@ -124,6 +147,14 @@ func _night_playing() -> void:
 		check(_hum(), "%s: factory hum while working" % name)
 	if main.pa_banner.visible:
 		pa_seen_by_hour[s.hour] = true
+		radio_seen = radio_seen or main.pa_banner.get_node("Text").text.begins_with("RADIO?")
+	if main.lights_out:
+		dark_by_hour[s.hour] = main.belt.modulate != Color.WHITE
+	for t: Tray in main.trays.get_children():
+		if t.kind == ShiftState.STRANGE and not t.has_meta("counted"):
+			t.set_meta("counted", true)
+			strange_by_hour[s.hour] = strange_by_hour.get(s.hour, 0) + 1
+	escape_popup_seen = escape_popup_seen or main.juice.get_children().any(func(n): return n is Label and n.text == "PSST... THANKS.")
 	if s.hour == 0:
 		if in_state == int(cfg.note_seconds * FPS) - 5:
 			check(main.trays.get_child_count() == 0, "no trays while the note is up")
@@ -266,7 +297,7 @@ func _autoplay() -> void:
 	var front := _front()
 	if front == null or front == sabotage:
 		return
-	var want: String = main.logic.exit_for(front.kind, front.stamp)
+	var want: String = "center" if front.kind == ShiftState.STRANGE else main.logic.exit_for(front.kind, front.stamp)
 	var have: String = main.logic.route
 	if want != have:
 		var side := want if want != "center" else have

@@ -20,6 +20,9 @@ func _initialize() -> void:
 	test_shop()
 	test_items()
 	test_pa()
+	test_strange_trays()
+	test_radio_and_flicker()
+	test_endings()
 	test_tray_path()
 	test_rules_data()
 	print("\n%s: %d failure(s)" % ["PASS" if failures == 0 else "FAIL", failures])
@@ -298,6 +301,106 @@ func test_pa() -> void:
 	check(s.pa_count > with_plugs, "earplugs last one hour")
 
 
+## A night that has clocked in to strange.from_hour (2 AM).
+func strange_night() -> ShiftState:
+	var s := night()
+	while not s.is_strange_hour():
+		s.start_hour()
+	return s
+
+
+func test_strange_trays() -> void:
+	var s := night()
+	var early := 0
+	while not s.is_strange_hour():
+		for i in 1000:
+			early += int(s.next_tray().kind == ShiftState.STRANGE)
+		s.start_hour()
+	check(early == 0 and s.hour == int(cfg.strange.from_hour), "no strange trays before strange.from_hour (%s)" % ShiftState.hour_name(s.hour))
+	var strange := 0
+	for i in 1000:
+		strange += int(s.next_tray().kind == ShiftState.STRANGE)
+	check(strange == int(cfg.strange.max_per_hour), "at most strange.max_per_hour strange trays an hour (%d)" % strange)
+	s.start_hour()
+	var first_at := -1
+	for i in 1000:
+		if s.next_tray().kind == ShiftState.STRANGE and first_at < 0:
+			first_at = i
+	check(s.hour_strange == int(cfg.strange.max_per_hour) and first_at >= 0, "the count resets every hour (first one after %d trays)" % first_at)
+
+	s = strange_night()
+	s.combo = 7
+	var before := [s.pay, s.sorted_total, s.sorted_ok, s.hour_sorted]
+	check(s.sort(ShiftState.STRANGE) == "escaped" and s.escaped == 1 and s.strange_seen == 1, "a strange tray sent straight on escapes to the dock")
+	check([s.pay, s.sorted_total, s.sorted_ok, s.hour_sorted] == before and s.combo == 7, "escaping pays nothing and doesn't count as sorting; the combo is untouched")
+	s.press_shift("left")
+	s.tick(cfg.swing_seconds + 0.01)
+	check(s.sort(ShiftState.STRANGE) == "caught" and s.strikes == 0 and s.combo == 7, "a strange tray sent left is caught: no strike, combo untouched")
+	s.mates = 1
+	s.press_shift("left")  # back to straight on, but the gate is still swinging at the red line
+	check(s.sort(ShiftState.STRANGE) == "caught" and s.last_missed and s.mates == 1, "a strange tray that misses the gate is caught too, and the mate isn't used")
+	check(s.strange_seen == 3 and s.escaped == 1 and s.accuracy() == 0.0, "3 seen, 1 escaped, and accuracy ignores them")
+
+
+func test_radio_and_flicker() -> void:
+	var s := night()
+	var dark := 0
+	for i in int(cfg.hour_seconds * 10):
+		s.tick(0.1)
+		dark += int(s.lights_out())
+	check(dark == 0, "the lights hold steady before strange.from_hour")
+	s = strange_night()
+	var f: Dictionary = cfg.strange.flicker
+	var dark_share := 0.0
+	for w: Array in f.dark:
+		dark_share += (w[1] - w[0]) / f.every
+	var steps := int(f.every * 100)
+	dark = 0
+	var radio := 0
+	var normal := 0
+	for i in steps:
+		s.tick(0.01)
+		dark += int(s.lights_out())
+	check(absf(dark / float(steps) - dark_share) < 0.02, "from 2 AM the lights are out %.0f%% of the time (%d of %d steps)" % [dark_share * 100, dark, steps])
+	s.stop_left = 1.0
+	var t0 := s.clock
+	var flickered := false
+	while s.clock - t0 < f.every:
+		s.tick(0.01)
+		flickered = flickered or s.lights_out()
+	check(flickered, "the lights flicker through an emergency stop too")
+	var start := s.pa_count
+	var seen := start
+	for hour in 2:  # 2 AM and 3 AM; 4 AM gets earplugs below
+		for i in int(cfg.hour_seconds * 10):
+			s.tick(0.1)
+			if s.pa_count != seen:
+				seen = s.pa_count
+				radio += int(s.pa_radio and s.pa_line in cfg.strange.radio)
+				normal += int(not s.pa_radio and s.pa_line in cfg.pa.lines)
+		s.start_hour()
+	check(radio > 0 and normal > 0 and radio + normal == s.pa_count - start, "from 2 AM the PA sometimes picks up clucking on the radio (%d radio, %d PA)" % [radio, normal])
+	s.pay = 1000
+	s.end_hour()
+	s.buy("earplugs")
+	s.start_hour()
+	var with_plugs := s.pa_count
+	_play_hour(s)
+	check(s.pa_count == with_plugs, "earplugs mute the radio clucks too")
+
+
+func test_endings() -> void:
+	var s := strange_night()
+	check(s.ending() == "normal", "no strange trays seen: the normal ending")
+	s.sort(ShiftState.STRANGE)
+	s.sort(ShiftState.STRANGE)
+	check(s.ending() == "secret", "every strange tray sent straight on: the secret ending")
+	s.press_shift("right")
+	s.tick(cfg.swing_seconds + 0.01)
+	s.sort(ShiftState.STRANGE)
+	check(s.ending() == "normal", "one strange tray caught: back to the normal ending")
+
+
 ## Ticks a whole hour in 0.1 s steps (PA timing included).
 func _play_hour(s: ShiftState) -> void:
 	for i in int(cfg.hour_seconds * 10):
@@ -360,3 +463,19 @@ func test_rules_data() -> void:
 	check(cfg.pa.from_hour > 0 and cfg.pa.from_hour < cfg.hours.size(), "the PA starts partway through the night")
 	check(cfg.pa.every[0] > cfg.pa.seconds and cfg.pa.every[1] >= cfg.pa.every[0], "announcements never overlap")
 	check(cfg.pa.lines.size() >= 4, "enough PA lines not to repeat constantly")
+	var st: Dictionary = cfg.strange
+	check(st.from_hour >= cfg.pa.from_hour and st.from_hour < cfg.hours.size(), "the strange night starts after the PA does (so the radio has a PA to cut into)")
+	check(st.chance > 0.0 and st.chance <= 0.1 and st.max_per_hour >= 1, "strange trays are rare, but there is at least one an hour")
+	check(st.radio_chance > 0.0 and st.radio_chance < 1.0 and st.radio.size() >= 3, "radio clucks mix with normal announcements")
+	check(st.radio.any(func(l): return "STRAIGHT" in l) and st.radio.any(func(l): return "DOCK" in l), "the radio hints at straight on and the dock")
+	var dark := 0.0
+	for w: Array in st.flicker.dark:
+		check(w[0] < w[1] and w[0] >= 0.0 and w[1] <= st.flicker.every, "flicker window %s fits in the cycle" % [w])
+		dark += w[1] - w[0]
+	check(dark / st.flicker.every < 0.25, "the lights are on most of the time (%.0f%% dark)" % (dark / st.flicker.every * 100))
+	for w: Array in st.flicker.dark:  # photosensitivity: WCAG 2.3.1 allows at most 3 flashes in any second
+		var flashes: int = st.flicker.dark.filter(func(o): return o[0] >= w[0] and o[0] < w[0] + 1.0).size()
+		check(flashes <= 2, "at most 2 flashes in the second from %.2f s (%d)" % [w[0], flashes])
+	check(Tray.FOOD.has(ShiftState.STRANGE) and not cfg.routes.has(ShiftState.STRANGE), "strange trays have art and no rule")
+	for which in ["normal", "secret"]:
+		check(cfg.endings.has(which) and cfg.endings[which].title != "" and cfg.endings[which].text != "", "the %s ending has a title and text" % which)

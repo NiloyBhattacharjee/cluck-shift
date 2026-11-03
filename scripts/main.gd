@@ -7,6 +7,9 @@ enum State { MENU, PLAYING, HOUR_END, SHOP, GAME_OVER, WIN }
 const TRAY := preload("res://scenes/tray.tscn")
 const ROUTE_NAMES := {"left": "LEFT", "center": "STRAIGHT", "right": "RIGHT"}
 const RESULT_SOUNDS := {"ok": "ding", "wrong": "strike_buzz", "missed": "missed", "covered": "select"}
+const TRAY_EDGE := {"ok": 1, "wrong": -1, "missed": -1, "covered": -1}  # strange trays keep a plain edge
+const LIGHTS_OUT := Color(0.28, 0.3, 0.42)  # the line under a flickering light
+const RADIO_COLOUR := Color(0.12, 0.3, 0.16, 0.97)  # the PA banner when it picks up clucking
 const SKIP := {"id": "skip", "name": "Skip", "price": 0, "text": "Keep your pay. Straight back to the line."}
 const POPUP_AT := Belt.FORK + Vector2(0, -70)
 
@@ -15,6 +18,8 @@ var state := State.MENU
 var logic := ShiftState.new(cfg)
 var _pa_seen := 0  # logic.pa_count when the banner last updated
 var backup_keys := false  # Z and / stand in for the Shifts; see _side()
+var lights_out := false  # the flicker as last shown
+var _pa_colour: Color
 
 @onready var belt: Belt = $Belt
 @onready var trays: Node2D = $Trays
@@ -30,6 +35,7 @@ var backup_keys := false  # Z and / stand in for the Shifts; see _side()
 @onready var message: Label = $HUD/Dim/Message
 @onready var shop: Control = $HUD/Shop
 @onready var title: Control = $HUD/Title
+@onready var ending: Control = $HUD/Ending
 
 
 func _ready() -> void:
@@ -38,6 +44,7 @@ func _ready() -> void:
 	spawn_timer.timeout.connect(_spawn)
 	hour_timer.timeout.connect(_on_hour_over)
 	shop.items = cfg.shop + [SKIP]
+	_pa_colour = pa_banner.color
 	_enter(State.MENU)
 
 
@@ -51,9 +58,11 @@ func _enter(new_state: State) -> void:
 		note_card.hide()
 		pa_banner.hide()
 		hazard.hide()
+		_set_lights(false)
 	Sfx.loop("hum", state == State.PLAYING)
 	title.visible = state == State.MENU
 	shop.visible = state == State.SHOP
+	ending.visible = state == State.WIN
 	_show("")
 	match state:
 		State.MENU:
@@ -77,9 +86,16 @@ func _enter(new_state: State) -> void:
 			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n\nPress Enter"
 				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
 		State.WIN:
+			var which := logic.ending()
 			Sfx.play("clock_in")
-			_show("6 AM. YOU MADE IT!\n\nEarned: $%d\nSpent in the break room: $%d\nTake-home pay: $%d\n\nTrays sorted: %d    Accuracy: %d%%    Best combo: %d\n\nPress Enter"
-				% [logic.pay, logic.spent, logic.wallet(), logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
+			if which == "secret":
+				Sfx.play("cluck", 1.1)
+			var rows := [["Earned", "$%d" % logic.pay], ["Break room", "-$%d" % logic.spent],
+				["Take-home pay", "$%d" % logic.wallet()], ["Trays sorted", str(logic.sorted_total)],
+				["Accuracy", "%d%%" % roundi(logic.accuracy() * 100)], ["Best combo", str(logic.best_combo)]]
+			if logic.strange_seen > 0:
+				rows.append(["Let through to the dock", "%d of %d" % [logic.escaped, logic.strange_seen]])
+			ending.show_ending(which == "secret", cfg.endings[which], rows)
 	_refresh_rules()
 	_update_hud()
 
@@ -197,6 +213,7 @@ func _physics_process(delta: float) -> void:
 				juice.puff(t.position, Tray.FOOD.get(t.kind, Color.WHITE))
 			t.queue_free()
 	_update_pa()
+	_set_lights(logic.lights_out())
 	hazard.visible = logic.is_stopped()
 	hazard.color.a = 0.12 + 0.1 * sin(logic.clock * 14.0)
 	_update_hud()
@@ -206,8 +223,18 @@ func _update_pa() -> void:
 	pa_banner.visible = logic.pa_left > 0.0
 	if logic.pa_count != _pa_seen:
 		_pa_seen = logic.pa_count
-		pa_banner.get_node("Text").text = "PA:  " + logic.pa_line
-		Sfx.play("pa_jingle")
+		pa_banner.get_node("Text").text = ("RADIO?  " if logic.pa_radio else "PA:  ") + logic.pa_line
+		pa_banner.color = RADIO_COLOUR if logic.pa_radio else _pa_colour
+		Sfx.play("radio" if logic.pa_radio else "pa_jingle")
+
+
+## The flickering lights from 2 AM: the belt and trays go dark, with an electric buzz as they cut out.
+func _set_lights(out: bool) -> void:
+	if out and not lights_out:
+		Sfx.play("flicker")
+	lights_out = out
+	belt.modulate = LIGHTS_OUT if out else Color.WHITE
+	trays.modulate = belt.modulate
 
 
 func _spawn() -> void:
@@ -229,7 +256,7 @@ func _on_tray_at_fork(area: Area2D) -> void:
 	var result := logic.sort(t.kind, t.stamp)
 	t.falling = logic.last_missed
 	t.path.append(Belt.FLOOR if t.falling else Belt.EXITS[logic.route])
-	t.result = 1 if result == "ok" else -1
+	t.result = TRAY_EDGE.get(result, 0)
 	t.queue_redraw()
 	match result:
 		"ok":
@@ -247,6 +274,12 @@ func _on_tray_at_fork(area: Area2D) -> void:
 			Sfx.play(RESULT_SOUNDS[result])
 			juice.shake(0.25)
 			juice.popup("YOUR MATE COVERED IT!", POPUP_AT, Color("4fc3f7"), 24)
+		"escaped":
+			Sfx.play("cluck", 1.25)
+			juice.popup("PSST... THANKS.", POPUP_AT, Color("ce93d8"), 22)
+		"caught":
+			Sfx.play("cluck", 0.8)
+			juice.popup("BAWK?!", POPUP_AT, Color("b0bec5"), 24)
 	if logic.sent_home():
 		_enter(State.GAME_OVER)
 
