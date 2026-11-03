@@ -14,10 +14,12 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 | | |
 |---|---|
 | ![Title screen](docs/images/title.png) | ![The break room](docs/images/shop.png) |
+| ![2 AM: something on the radio](docs/images/strange.png) | ![6 AM](docs/images/ending_normal.png) |
 
-> **Status: Phase 3 of 4.** The full game is playable: a title screen, eight hours with a rule change each hour,
-> stamps, PA distractions, a break-room shop between hours, popups, particles, screen shake and synthesized sounds,
-> and a 6 AM win. The optional strange night (Phase 4) is the only part left. See the [roadmap](#roadmap).
+> **Status: all 4 phases done.** A title screen, eight hours with a rule change each hour, stamps, PA distractions,
+> a break-room shop between hours, popups, particles, screen shake and synthesized sounds. From 2 AM the night gets
+> strange: odd trays, flickering lights and something clucking on the radio. Two endings at 6 AM, one of them secret.
+> See the [roadmap](#roadmap).
 
 ## Controls
 
@@ -59,8 +61,8 @@ From a terminal: `godot --path .`
 
 ```bash
 godot --headless --path . --import                                # once, after cloning
-godot --headless --path . -s tests/test_logic.gd                  # 161 rule checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (137 checks)
+godot --headless --path . -s tests/test_logic.gd                  # 189 rule checks
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (163 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).
@@ -104,7 +106,7 @@ perfect player can still sort the whole night. Field reference: [docs/data-forma
 
 | Doc | What's in it |
 |---|---|
-| [docs/design.md](docs/design.md) | Game design: core loop, gate and game state machines, emergency stop logic, scoring formulas, difficulty curve, and the plan for Phases 2 to 4, with diagrams |
+| [docs/design.md](docs/design.md) | Game design: core loop, gate and game state machines, emergency stop logic, scoring formulas, difficulty curve, shop, PA, the strange night and both endings, with diagrams (spoilers) |
 | [docs/architecture.md](docs/architecture.md) | Scene tree, which script owns what, the frame and input flow, how to extend it |
 | [docs/data-format.md](docs/data-format.md) | Every field in `rules.json` |
 | [docs/testing.md](docs/testing.md) | What the tests prove, and the manual playtest checklist |
@@ -122,6 +124,7 @@ scripts/tray.gd        a tray: movement and drawing
 scripts/juice.gd       popups, particle puffs, screen shake
 scripts/title.gd       the title screen
 scripts/shop_view.gd   the break-room vending machine
+scripts/ending.gd      the two 6 AM endings
 scripts/sfx.gd         every sound, synthesized at start-up
 tests/                 headless test scripts
 ```
@@ -133,7 +136,7 @@ tests/                 headless test scripts
 | 1 | Belt, fork, 3 tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
 | 2 | 10 PM to 6 AM night clock, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, 6 AM win | Done |
 | 3 | Break-room shop (Coffee, Mate's Help, Earplugs), PA distractions, screen shake, particles, popups, synthesized sounds, title screen | Done |
-| 4 | Strange trays from 2 AM, flickering lights, radio glitches, normal and secret endings | Optional |
+| 4 | Strange trays from 2 AM, flickering lights, radio glitches, normal and secret endings | Done |
 
 Each item is a [GitHub issue](../../issues). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
