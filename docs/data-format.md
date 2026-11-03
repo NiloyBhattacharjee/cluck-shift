@@ -18,6 +18,9 @@ the night, never the file's data. Edit it, relaunch, and run the tests.
 | `clean_hour_bonus` | integer | Added at the end of an hour with no strikes (and at least one tray sorted). |
 | `stamp_chance` | number, 0 to 1 | Share of trays that get a stamp while any stamp rule exists. |
 | `swing_seconds` | number | How long a gate takes to swing; a tray reaching the red line during it is missed. |
+| `coffee_factor` | number, 0.5 to 1 | Coffee multiplies belt speed by this and divides the tray interval by it. |
+| `shop` | array of items | The break-room items, in display order (Skip is added by the game). |
+| `pa` | object | PA announcements (below). |
 | `hours` | array of 8 hour objects | 10 PM first, 5 AM last. |
 
 ## Hour object
@@ -57,7 +60,36 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 - a note has no `text`, or (after the first hour) does not change exactly one rule,
 - a route or stamp names an exit other than `left`, `center` or `right`, or a swap names the same exit twice,
 - any kind (starting or added by a note) has no drawing in `Tray.FOOD`, or any stamp none in `Tray.STAMPS`,
-- `stamp_chance` is not between 0 and 0.5, or `swing_seconds` is not shorter than the both-Shifts window.
+- `stamp_chance` is not between 0 and 0.5, or `swing_seconds` is not shorter than the both-Shifts window,
+- a shop item lacks a name, text or positive price, or the shop is not exactly Coffee, Mate's Help and Earplugs,
+- `coffee_factor` is not between 0.5 and 1,
+- the PA starts at 10 PM or after the last hour, announcements could overlap (`every[0]` <= `seconds`), or there are
+  fewer than 4 lines.
+
+## Shop item
+
+```json
+{ "id": "coffee", "name": "Coffee", "price": 150, "text": "Next hour the belt runs 20% slower and trays come 20% less often." }
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | `coffee`, `mate` or `earplugs`: the effect `ShiftState.buy()` applies. A new id needs code. |
+| `name`, `text` | Shown on the vending-machine card. |
+| `price` | Taken off the wallet. Refused if the wallet is short. |
+
+## PA object
+
+```json
+"pa": { "from_hour": 2, "every": [9, 16], "seconds": 3.5, "lines": ["Please stop high-fiving the drumsticks.", "..."] }
+```
+
+| Field | Meaning |
+|---|---|
+| `from_hour` | First hour with announcements (0 = 10 PM, 2 = 12 AM). |
+| `every` | [min, max] seconds between the end of one announcement and the start of the next. |
+| `seconds` | How long the banner stays up. |
+| `lines` | What the PA says, picked at random. |
 
 ## Recipes
 
@@ -71,3 +103,5 @@ and a drawing in `Tray._draw()` (`scripts/tray.gd`). The data test fails until t
 **Add a new stamp colour:** a note with `"stamp": {"green": "right"}`, plus a colour in `Tray.STAMPS`.
 
 **Make the night shorter for testing:** lower `hour_seconds`.
+
+**Reprice the shop:** edit `price` in `shop`. **Add a PA line:** append to `pa.lines`.

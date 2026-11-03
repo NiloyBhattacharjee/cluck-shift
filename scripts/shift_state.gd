@@ -1,7 +1,7 @@
 class_name ShiftState
 extends RefCounted
 ## Every rule of one night, with no nodes: the hours and their supervisor notes, gates,
-## gate swing, emergency stop, pay, combo, strikes and the belt ramp. main.gd shows it
+## gate swing, emergency stop, pay, combo, strikes, the belt ramp, the shop and the PA. main.gd shows it
 ## on screen; tests/test_logic.gd drives it directly. A new night is a new ShiftState,
 ## so there is no reset code to forget a field in.
 
@@ -24,6 +24,7 @@ var speed := 0.0  # belt speed in px/s
 var interval := 0.0  # seconds between new trays
 
 var pay := 0  # earned over the night, bonuses included
+var spent := 0  # spent in the shop
 var last_gain := 0  # pay from the latest correct tray
 var combo := 0  # carries over between hours
 var best_combo := 0
@@ -36,6 +37,16 @@ var hour_pay := 0
 var estops_left := 0  # for the whole night
 var stop_left := 0.0  # seconds of emergency stop still to run
 var swing_left := 0.0  # seconds until the gate finishes moving
+var last_missed := false  # the latest sorted tray reached the red line mid-swing
+
+var coffee := false  # this hour: belt slower (bought in the shop before the hour)
+var earplugs := false  # this hour: no PA announcements
+var mates := 0  # strikes your mate will still cover; carries over until used
+
+var pa_left := 0.0  # seconds the current PA announcement still shows
+var pa_line := ""  # what it says
+var pa_count := 0  # announcements so far (main.gd plays the jingle when this goes up)
+var _pa_next := INF  # seconds until the next announcement
 
 var _route_before := "center"  # route before the latest toggle, restored by an emergency stop
 var _last_press := {"left": -INF, "right": -INF}
@@ -63,6 +74,10 @@ func start_hour() -> void:
 	swing_left = 0.0
 	note = cfg.hours[hour].get("note", {})
 	changed = apply_note(note)
+	pa_left = 0.0
+	_pa_next = INF
+	if hour >= cfg.pa.from_hour and not earplugs:
+		_pa_next = cfg.note_seconds + rng.randf_range(cfg.pa.every[0], cfg.pa.every[1])
 	_update_belt()
 
 
@@ -92,12 +107,44 @@ func apply_note(n: Dictionary) -> Array:
 	return []
 
 
-## Ends the hour. Adds the clean-hour bonus and returns the tally.
+## Ends the hour. Adds the clean-hour bonus, uses up this hour's items, and returns the tally.
 func end_hour() -> Dictionary:
 	var bonus := int(cfg.clean_hour_bonus) if strikes == 0 and hour_sorted > 0 else 0
 	pay += bonus
+	coffee = false
+	earplugs = false
 	return {"from": hour_name(hour), "to": hour_name(hour + 1), "sorted": hour_sorted, "ok": hour_ok,
 		"strikes": strikes, "pay": hour_pay, "bonus": bonus, "total": pay}
+
+
+# --- shop ------------------------------------------------------------------
+
+func wallet() -> int:
+	return pay - spent
+
+
+func shop_item(id: String) -> Dictionary:
+	for item: Dictionary in cfg.shop:
+		if item.id == id:
+			return item
+	return {}
+
+
+## Buys one item between hours. Returns false (and changes nothing) if it costs more than the wallet.
+## Coffee and Earplugs work for the next hour; Mate's Help lasts until it covers a strike.
+func buy(id: String) -> bool:
+	var item := shop_item(id)
+	if item.is_empty() or item.price > wallet():
+		return false
+	spent += int(item.price)
+	match id:
+		"coffee":
+			coffee = true
+		"earplugs":
+			earplugs = true
+		"mate":
+			mates += 1
+	return true
 
 
 func is_last_hour() -> bool:
@@ -123,6 +170,7 @@ func clock_text() -> String:
 func tick(delta: float) -> float:
 	clock += delta
 	swing_left = maxf(swing_left - delta, 0.0)
+	_tick_pa(delta)
 	if stop_left > 0.0:
 		stop_left = maxf(stop_left - delta, 0.0)
 		return 0.0
@@ -132,11 +180,27 @@ func tick(delta: float) -> float:
 
 
 ## Belt speed and tray interval slide linearly from the hour's first to its second value.
+## Coffee slows the belt and spaces trays out by the same factor, so gaps stay the same.
 func _update_belt() -> void:
 	var h: Dictionary = cfg.hours[hour]
 	var p := clampf(hour_elapsed / cfg.hour_seconds, 0.0, 1.0)
-	speed = lerpf(h.speed[0], h.speed[1], p)
-	interval = lerpf(h.interval[0], h.interval[1], p)
+	var k: float = cfg.coffee_factor if coffee else 1.0
+	speed = lerpf(h.speed[0], h.speed[1], p) * k
+	interval = lerpf(h.interval[0], h.interval[1], p) / k
+
+
+## PA announcements: from pa.from_hour, every few seconds (random within pa.every), unless earplugs.
+## They run on the game clock, emergency stops included: the PA does not stop for the belt.
+func _tick_pa(delta: float) -> void:
+	if pa_left > 0.0:
+		pa_left = maxf(pa_left - delta, 0.0)
+		return
+	_pa_next -= delta
+	if _pa_next <= 0.0:
+		pa_left = cfg.pa.seconds
+		pa_line = cfg.pa.lines[rng.randi() % cfg.pa.lines.size()]
+		pa_count += 1
+		_pa_next = rng.randf_range(cfg.pa.every[0], cfg.pa.every[1])
 
 
 func is_stopped() -> bool:
@@ -185,10 +249,12 @@ func press_shift(side: String) -> String:
 
 # --- scoring ---------------------------------------------------------------
 
-## A tray reached the red line. Returns "ok", "wrong", or "missed" (the gate was still swinging,
-## so the tray falls off the line). Wrong and missed are strikes.
+## A tray reached the red line. Returns "ok", "wrong", "missed" (the gate was still swinging, so the
+## tray falls off the line) or "covered" (wrong or missed, but your mate took the strike).
+## Wrong and missed are strikes. last_missed says whether the tray fell, whatever the result.
 func sort(kind: String, stamp := "") -> String:
 	var missed := is_swinging()
+	last_missed = missed
 	sorted_total += 1
 	hour_sorted += 1
 	if not missed and exit_for(kind, stamp) == route:
@@ -201,6 +267,9 @@ func sort(kind: String, stamp := "") -> String:
 		hour_pay += last_gain
 		return "ok"
 	combo = 0
+	if mates > 0:
+		mates -= 1
+		return "covered"
 	strikes += 1
 	return "missed" if missed else "wrong"
 
