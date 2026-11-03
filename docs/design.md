@@ -57,7 +57,9 @@ and you're sent home.
 
 Only key-down events count. Key repeat (echo) is ignored, so holding a Shift is one press. Left and right are told
 apart by the key's `location` (`KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`), which Godot reads from the OS on desktop
-and from `KeyboardEvent.location` in the browser.
+and from `KeyboardEvent.location` in the browser. If a Shift arrives with no location, guessing a side would leave
+the other gate unreachable, so that press does nothing and the backup keys take over: **Z** (left) and **/** (right),
+the keys beside each Shift. The title screen and the HUD show the switch.
 
 ## 5. Screen layout
 
@@ -500,7 +502,7 @@ Field reference: [data-format.md](data-format.md).
 | Issue | Impact | Mitigation |
 |---|---|---|
 | Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | The README and the title screen tell players to turn off the shortcut (#21). A game cannot turn it off. |
-| Shift location not reported | Some setups report Shift with no location; every press acts as Right Shift (#22). | Possible fallback: physical_keycode, or a "press Left Shift" check. |
+| Shift location not reported | Some setups report Shift with no location (#22). | Fixed: Z and / take over the gates, with a notice on the title and HUD. |
 | Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start`; Enter on the menu needs a click or key on the page anyway. |
 | Random streaks | Uniform random kinds can produce runs. | Fine so far; a shuffled bag per hour if playtests say it feels unfair. |
 

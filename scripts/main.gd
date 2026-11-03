@@ -14,6 +14,7 @@ var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://dat
 var state := State.MENU
 var logic := ShiftState.new(cfg)
 var _pa_seen := 0  # logic.pa_count when the banner last updated
+var backup_keys := false  # Z and / stand in for the Shifts; see _side()
 
 @onready var belt: Belt = $Belt
 @onready var trays: Node2D = $Trays
@@ -104,12 +105,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	var side := "left" if key.location == KEY_LOCATION_LEFT else "right"
+	var side := _side(key)
 	if state == State.PLAYING:
-		if key.keycode == KEY_SHIFT:
+		if side != "":
 			_on_shift(side)
 		return
-	if state == State.SHOP and key.keycode == KEY_SHIFT:
+	if state == State.SHOP and side != "":
 		shop.selected = wrapi(shop.selected + (-1 if side == "left" else 1), 0, shop.items.size())
 		Sfx.play("select")
 		_refresh_shop()
@@ -124,6 +125,30 @@ func _unhandled_input(event: InputEvent) -> void:
 				_checkout()
 			State.GAME_OVER, State.WIN:
 				_enter(State.MENU)
+
+
+## Which gate a key works: "left", "right" or "" (not a gate key). Some setups (remote desktop,
+## some browsers) send Shift with no left/right location (#22). Guessing would make one gate
+## unreachable, so that Shift does nothing and Z / slash, the keys beside each Shift, take over.
+func _side(key: InputEventKey) -> String:
+	if key.keycode == KEY_SHIFT:
+		match key.location:
+			KEY_LOCATION_LEFT:
+				return "left"
+			KEY_LOCATION_RIGHT:
+				return "right"
+		if not backup_keys:
+			backup_keys = true
+			title.backup_keys = true
+			_update_hud()
+		return ""
+	if backup_keys:
+		match key.keycode:
+			KEY_Z:
+				return "left"
+			KEY_SLASH:
+				return "right"
+	return ""
 
 
 func _on_shift(side: String) -> void:
@@ -281,6 +306,8 @@ func _update_hud() -> void:
 		"X ".repeat(logic.strikes) + "_ ".repeat(maxi(allowed - logic.strikes, 0)),
 		logic.estops_left, logic.speed / cfg.hours[0].speed[0],
 		"    STOPPED!" if logic.is_stopped() else "", "  ".join(items)]
+	if backup_keys:
+		stats.text += "\nGATES  Z  and  /"
 	belt.route = logic.route
 	belt.swinging = logic.is_swinging()
 	belt.queue_redraw()

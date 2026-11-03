@@ -38,7 +38,7 @@ Drives `ShiftState` directly. No scene, no timing.
 | Tray path | `Tray.advance` follows a leg, carries leftover distance round a corner, stops at the end; a missed tray tumbles. |
 | Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the three known items with names, text and prices; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. |
 
-## tests/test_play.gd: the real game (133 checks)
+## tests/test_play.gd: the real game (137 checks)
 
 Loads `scenes/main.tscn` and plays it through `Viewport.push_input` key events, the real `SpawnTimer` and
 `HourTimer`, and the real Fork `Area2D` overlap.
@@ -76,7 +76,9 @@ red line. Checks:
 - the idle player is sent home in the first hour on exactly 3 strikes, the screen shows the time and shakes,
 - the belt is frozen after game over and Shift does nothing,
 - Enter goes to the title, and Enter again starts a clean night at 10 PM (no pay, nothing spent, no mate, all
-  emergency stops) with old trays cleared.
+  emergency stops) with old trays cleared,
+- on that new night, Z does nothing; a Shift with no left/right location moves no gate, switches on the Z and /
+  backup keys and shows them on the HUD; then Z works the left gate (#22).
 
 A frame limit fails the run instead of hanging if something stops progressing.
 

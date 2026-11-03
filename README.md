@@ -42,6 +42,10 @@ strike) and Earplugs ($100, no PA next hour). Whatever you spend comes off your 
 
 > **Windows players:** pressing Shift five times opens the Sticky Keys prompt. Turn it off in
 > Settings > Accessibility > Keyboard > Sticky keys > "Keyboard shortcut for Sticky keys".
+>
+> **Remote desktop or an odd browser?** If your setup can't tell left Shift from right Shift, the game notices the
+> first time you press Shift and switches the gates to **Z** (left) and **/** (right), the keys beside each Shift.
+> The title screen and the HUD say so.
 
 ## Run it
 
@@ -56,7 +60,7 @@ From a terminal: `godot --path .`
 ```bash
 godot --headless --path . --import                                # once, after cloning
 godot --headless --path . -s tests/test_logic.gd                  # 161 rule checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (133 checks)
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (137 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).

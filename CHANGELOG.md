@@ -5,6 +5,10 @@ All notable changes to Cluck Shift are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Shift with no left/right location (remote desktop, some browsers) no longer acts as Right Shift. The game switches
+  the gates to Z and / and says so on the title and HUD (#22).
+
 ### Added
 - **Phase 3: the break room, distractions and juice.** Between hours the break-room vending machine sells Coffee
   (slower belt next hour), Mate's Help (covers your next strike) and Earplugs (no PA next hour), chosen with the Shift
@@ -14,7 +18,7 @@ All notable changes to Cluck Shift are recorded here. The format follows
 - Every sound is now synthesized (clicks, bells, slide whistle, siren, ka-ching, PA chime, factory hum) instead of
   placeholder beeps. No audio files.
 - A title screen with a night-shift chicken in a hard hat, the controls and the Sticky Keys hint.
-- Tests: 161 rule checks; the whole-night playthrough now goes through the shop (133 checks).
+- Tests: 161 rule checks; the whole-night playthrough now goes through the shop (137 checks).
 - **Phase 2: the whole night.** Eight 75-second hours from 10 PM to 6 AM on an `HourTimer`, with the clock on the
   HUD. Each hour has its own belt (speed and interval slide from the hour's first to its second value, and every hour
   starts faster). Strikes reset every hour; pay, combo and emergency stops carry over. An hour ends in a tally with a

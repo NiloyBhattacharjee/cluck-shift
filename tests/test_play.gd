@@ -248,6 +248,14 @@ func _idle() -> void:
 					var n: ShiftState = main.logic
 					check(n.hour == 0 and n.strikes == 0 and n.pay == 0 and n.spent == 0 and n.mates == 0 and n.estops_left == int(cfg.estops), "the new night starts clean at 10 PM")
 					check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "old trays are cleared")
+					# #22: a Shift with no left/right does nothing and switches on Z and / as the gate keys
+					_key(KEY_Z)
+					check(n.route == "center" and not main.backup_keys, "Z is not a gate key on a normal keyboard")
+					_key(KEY_SHIFT)
+					check(n.route == "center" and main.backup_keys, "a Shift with no left/right moves no gate and turns on Z and /")
+					check(main.stats.text.ends_with("GATES  Z  and  /"), "the HUD shows the backup keys")
+					_key(KEY_Z)
+					check(n.route == "left", "then Z works the left gate")
 					_finish()
 
 

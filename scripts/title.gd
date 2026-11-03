@@ -7,6 +7,8 @@ const INK := Color("eceff1")
 const HI_VIS := Color("ff8f00")
 const HAT := Color("ffca28")
 
+var backup_keys := false  # set by main.gd when Shift arrives with no left/right (#22)
+
 
 func _process(_delta: float) -> void:
 	if visible:
@@ -45,6 +47,9 @@ func _draw() -> void:
 	draw_string(font, Vector2(400, 394), "The supervisor changes one rule every hour.", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, INK)
 	draw_string(font, Vector2(400, 418), "3 strikes in one hour and you're sent home.", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, INK)
 
+	if backup_keys:
+		draw_string(font, Vector2(0, 505), "Your setup can't tell left Shift from right Shift: use Z (left gate) and / (right gate).",
+			HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, HI_VIS)
 	if fmod(t, 1.0) < 0.7:
 		draw_string(font, Vector2(0, 458), "PRESS ENTER TO CLOCK IN", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, HAT)
 	draw_string(font, Vector2(0, 528), "Windows: turn off the Sticky Keys shortcut first (Settings > Accessibility > Keyboard).   Game Off 2026: SHIFT",

@@ -25,7 +25,7 @@ cluck_shift/
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
 │   ├── test_logic.gd      # 161 checks on ShiftState, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (133 checks)
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (137 checks)
 └── docs/                  # this folder
 ```
 
@@ -126,7 +126,9 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
 - Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING, HOUR_END to SHOP (or WIN after 5 AM),
   SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER and WIN to MENU.
   Everything else is ignored.
-- In PLAYING, only `KEY_SHIFT` counts. `event.location == KEY_LOCATION_LEFT` means left; anything else means right.
+- In PLAYING and SHOP, `_side(event)` names the gate: Shift with `KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`. A Shift
+  with no location (some remote desktops and browsers) moves nothing and sets `backup_keys`; from then on Z is left
+  and / is right, and the title and HUD say so (#22).
   `logic.press_shift(side)` returns `toggle`, `estop` or `denied`, which picks the sound.
 
 Using `_unhandled_input` (not `_input`) means a future pause menu or UI control can consume keys first.
