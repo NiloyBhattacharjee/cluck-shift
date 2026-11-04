@@ -21,6 +21,14 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 > strange: odd trays, flickering lights and something clucking on the radio. Two endings at 6 AM, one of them secret.
 > See the [roadmap](#roadmap).
 
+## Play it
+
+- **In your browser (easiest):** open the game's itch.io page, press **Run game**, then click the game once so it
+  gets your keyboard. Nothing to download or install. You need a desktop browser (Chrome, Firefox or Edge) and a
+  physical keyboard.
+- **Download and run it yourself:** on GitHub press **Code > Download ZIP** (or `git clone` this repo), unzip it,
+  then follow [Run it](#run-it) below. You need the free Godot 4.7 editor.
+
 ## Controls
 
 | Key | Effect |
@@ -143,6 +151,13 @@ Each item is a [GitHub issue](../../issues). Changes are listed in [CHANGELOG.md
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Keep it cartoony: no gore.
+
+## AI disclosure
+
+Cluck Shift was made with Claude (Anthropic) as the programmer. All the code, writing, art and sound were produced
+with AI assistance, directed by the author. The game ships no image, audio or font files: the art is drawn in code
+(Godot's draw functions), the sounds are synthesized in code (`scripts/sfx.gd`), and the text uses Godot's built-in
+font. No AI image or music generators were used.
 
 ## Licence
 
