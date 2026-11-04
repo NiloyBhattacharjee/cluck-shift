@@ -6,10 +6,12 @@ Game Off 2026 entry. Theme: **SHIFT**. Engine: Godot 4.7 (GDScript), exported to
 |---|---|---|
 | 1 | One belt, one fork, three tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
 | 2 | Night clock 10 PM to 6 AM, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, win at 6 AM | Done |
-| 3 | Break-room shop, PA distractions, juice (shake, particles, popups), synthesized sounds, title screen | **Done** |
+| 3 | Break-room shop, PA distractions, juice (shake, particles, popups), synthesized sounds, title screen | Done |
 | 4 | Strange trays from 2 AM, flicker, radio glitches, normal and secret endings | Done |
+| 5 | Esc pause and mute, saved records, the 6 AM ledger chart, music, Windows download | Done |
 
-Every section describes what is built and tested; section 21 is the strange night (Phase 4). Every number comes
+Every section describes what is built and tested; section 21 is the strange night (Phase 4) and section 23 the
+Phase 5 polish. Every number comes
 from [`data/rules.json`](../data/rules.json) or a named constant, and the tests in [`tests/`](../tests) check the
 rules written here (see [testing.md](testing.md)).
 
@@ -415,7 +417,7 @@ stateDiagram-v2
 | GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
 | WIN | Stop timers, pick the ending (`ShiftState.ending()`), show the dawn scene and the payslip: earned, spent, take-home pay, trays, accuracy, best combo, strange trays let through | Enter, Space | Nothing (the ending animates itself) | Enter |
 
-The factory hum loops only in PLAYING. The title shows only in MENU, the vending machine only in SHOP and the ending
+Esc or P pauses PLAYING without leaving it (section 23.1). The factory hum and the music loop only in PLAYING. The title shows only in MENU, the vending machine only in SHOP and the ending
 only in WIN. Leaving PLAYING turns the lights back on, so a flicker never carries into a tally.
 
 Every new night builds a brand-new `ShiftState` in MENU, so nothing from the last night can leak into the next one.
@@ -474,6 +476,7 @@ so the game has no audio files and no licences to track.
 | `cluck` | A strange tray escapes (pitched up) or is caught (pitched down); the secret ending | Two quick 950 to 480 Hz sweeps |
 | `radio` | The PA picks up clucking instead of an announcement | Static with clucks every 0.32 s, fading out |
 | `flicker` | The lights cut out | 100 Hz square buzz through noise, 0.16 s |
+| `music` (loop) | The whole time you are on the line, faster every hour (section 23.4) | Plucked bass riff, kick and hi-hat, 4 s at 120 bpm |
 
 ## 15. Tuning knobs
 
@@ -713,3 +716,109 @@ from `endings` in rules.json; the scenes are drawn in `scripts/ending.gd`.
 3. Should the 2 AM swap get a longer note time? It reverses every habit at once.
 4. Are the shop prices right? A perfect player can afford everything; a struggling one earns roughly $300 to $800 an
    hour. Playtest whether Mate's Help at $250 is bought by the players who need it.
+
+---
+
+## 23. Polish (Phase 5)
+
+Phase 5 leaves the core loop alone: the same belt, gates, rules, hours, shop and endings. It adds what a player
+expects around that loop, borrowed from what worked in
+[Plunder and Pillage](https://github.com/NiloyBhattacharjee/Plunder_and_Pillage): an Esc menu and a mute key
+(its #78 and #56), saved records (#78), a ledger chart (#70), music (#63) and a Windows download (#78).
+
+### 23.1 Pause and mute (#31)
+
+Pausing is a flag inside PLAYING, not a game state: the hour, the note, the strikes and the trays all stay where they
+are, so there is nothing to save or restore.
+
+```mermaid
+stateDiagram-v2
+    state PLAYING {
+        [*] --> working
+        working --> paused: Esc / P, or the window loses focus
+        paused --> working: Esc / P
+        paused --> paused: M (sound on / off)
+    }
+    paused --> MENU: Q (the night is thrown away)
+    MENU --> MENU: M (sound on / off)
+```
+
+| While paused | How |
+|---|---|
+| Belt, trays, game clock, belt ramp | `_physics_process` returns before `logic.tick()` |
+| PA timing, flicker, emergency stop countdown | all run on `logic.clock`, which only `tick()` advances |
+| Spawn and hour Timers | `paused = true` by hand (the stop logic keeps them paused if an emergency stop was running) |
+| Shift keys | ignored: no gate moves, no emergency stop |
+| Hum and music | stopped; they restart on resume |
+| Note card and PA banner | hidden behind the PAUSED card; the next frame after resume shows them again if still due |
+
+Losing window focus (alt-tab, clicking outside the browser tab) pauses too, so the belt never runs on unseen. Esc can
+also leave fullscreen in a browser, so **P** does the same job.
+
+Mute sets the master audio bus mute and is saved in the record book, so it survives a reload.
+
+### 23.2 The record book (#32)
+
+`scripts/records.gd` keeps a dictionary in `user://records.cfg` (a `ConfigFile`; on the web Godot stores `user://` in
+the browser's IndexedDB):
+
+| Key | Meaning | Updated |
+|---|---|---|
+| `nights` | Nights finished (sent home or 6 AM) | every finished night |
+| `survived` | Nights that reached 6 AM | 6 AM |
+| `best_pay` | Best take-home pay (`pay - spent`) | 6 AM only |
+| `best_combo` | Best combo in a night | any finished night |
+| `best_accuracy` | Best accuracy (0..1) | 6 AM only |
+| `secret` | The Great Escape has been seen | 6 AM only |
+| `muted` | Sound off | the M key |
+
+A night quit from the pause card is not finished: it changes nothing.
+
+```mermaid
+flowchart LR
+    G[GAME_OVER] -->|"merge(rec, night, false)"| R[(records.cfg)]
+    W[WIN] -->|"merge(rec, night, true)"| R
+    R --> T[title: best night line]
+    G --> N1[card: NEW BEST combo]
+    W --> N2[payslip: NEW BEST ...]
+```
+
+`Records.merge()` is pure (no files), returns the keys it beat, and `Records.describe()` turns them into the
+"NEW BEST: take-home pay, best combo" line. Pay only counts at 6 AM so that a player who earns a lot and is then sent
+home doesn't hold a "best night" they never finished. The first finished night beats every record it has a non-zero
+value for.
+
+![The title with records](images/title.png)
+
+### 23.3 The night ledger (#33)
+
+`ShiftState.end_hour()` appends each hour's tally to `ledger`. The 6 AM ending draws it beside the payslip:
+
+- one bar per hour, height = `pay + bonus` scaled to the night's best hour,
+- green for a clean hour, amber with one red **X** per strike otherwise,
+- the hour (10, 11, 12, 1 ... 5) under each bar.
+
+Being sent home has no chart: by then there are rarely more than one or two hours to show.
+
+![6 AM with the ledger and a new best](images/ending_ledger.png)
+
+### 23.4 Music (#34)
+
+A 4-second loop synthesized in `sfx.gd` at start-up, like every other sound: two bars at 120 bpm of plucked bass
+(A minor riff, A-A-C-A-D-A-E-G then A-A-C-A-D-E-D-C), a kick drum on every beat and a hi-hat on every off-beat. Each
+bass note fades in and out over about 3 ms, so the loop never clicks.
+
+It plays only in PLAYING, alongside the hum, at -14 dB so the gameplay sounds stay on top. Each hour it plays faster:
+
+```
+pitch_scale = 1 + MUSIC_STEP * hour        MUSIC_STEP = 0.03
+```
+
+so 10 PM is 120 bpm and 5 AM is 145 bpm (x1.21), with the pitch rising a few semitones as the night gets frantic.
+Earplugs only block the PA and radio; they don't touch the music. Mute does.
+
+### 23.5 Windows download (#35)
+
+A second export preset, **Windows Desktop**: x86_64, the game data embedded in the .exe, no console window. The
+result is a single `Cluck Shift.exe` (about 110 MB, almost all of it the Godot engine) to upload to itch.io next to
+the web build. See [releasing.md](releasing.md).

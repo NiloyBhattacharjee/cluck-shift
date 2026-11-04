@@ -1,5 +1,6 @@
 extends Node2D
-## Scene glue: game state machine, Shift input, spawning and moving trays, HUD, shop and juice.
+## Scene glue: game state machine, Shift input, spawning and moving trays, HUD, shop, juice,
+## the pause menu and the record book.
 ## The rules themselves live in ShiftState (scripts/shift_state.gd).
 
 enum State { MENU, PLAYING, HOUR_END, SHOP, GAME_OVER, WIN }
@@ -12,6 +13,7 @@ const LIGHTS_OUT := Color(0.28, 0.3, 0.42)  # the line under a flickering light
 const RADIO_COLOUR := Color(0.12, 0.3, 0.16, 0.97)  # the PA banner when it picks up clucking
 const SKIP := {"id": "skip", "name": "Skip", "price": 0, "text": "Keep your pay. Straight back to the line."}
 const POPUP_AT := Belt.FORK + Vector2(0, -70)
+const MUSIC_STEP := 0.03  # the music plays this much faster every hour (#34)
 
 var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
 var state := State.MENU
@@ -20,6 +22,9 @@ var _pa_seen := 0  # logic.pa_count when the banner last updated
 var backup_keys := false  # Z and / stand in for the Shifts; see _side()
 var lights_out := false  # the flicker as last shown
 var _pa_colour: Color
+var paused := false  # Esc / P during a shift (#31)
+var records_path := Records.PATH  # the tests point this at a scratch file before _ready
+var records: Dictionary  # the record book and the mute setting (#32)
 
 @onready var belt: Belt = $Belt
 @onready var trays: Node2D = $Trays
@@ -45,6 +50,9 @@ func _ready() -> void:
 	hour_timer.timeout.connect(_on_hour_over)
 	shop.items = cfg.shop + [SKIP]
 	_pa_colour = pa_banner.color
+	records = Records.load_file(records_path)
+	AudioServer.set_bus_mute(0, records.muted)
+	title.records = records
 	_enter(State.MENU)
 
 
@@ -52,14 +60,15 @@ func _ready() -> void:
 
 func _enter(new_state: State) -> void:
 	state = new_state
+	paused = false
 	if state != State.PLAYING:
+		_set_loops(false)
 		spawn_timer.stop()
 		hour_timer.stop()
 		note_card.hide()
 		pa_banner.hide()
 		hazard.hide()
 		_set_lights(false)
-	Sfx.loop("hum", state == State.PLAYING)
 	title.visible = state == State.MENU
 	shop.visible = state == State.SHOP
 	ending.visible = state == State.WIN
@@ -83,8 +92,10 @@ func _enter(new_state: State) -> void:
 			_refresh_shop()
 		State.GAME_OVER:
 			juice.shake(1.0)
-			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n\nPress Enter"
-				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo])
+			var beaten := _record_night(false)
+			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter"
+				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo,
+				"NEW BEST: %s\n" % beaten if beaten != "" else ""])
 		State.WIN:
 			var which := logic.ending()
 			Sfx.play("clock_in")
@@ -95,7 +106,7 @@ func _enter(new_state: State) -> void:
 				["Accuracy", "%d%%" % roundi(logic.accuracy() * 100)], ["Best combo", str(logic.best_combo)]]
 			if logic.strange_seen > 0:
 				rows.append(["Let through to the dock", "%d of %d" % [logic.escaped, logic.strange_seen]])
-			ending.show_ending(which == "secret", cfg.endings[which], rows)
+			ending.show_ending(which == "secret", cfg.endings[which], rows, logic.ledger, _record_night(true))
 	_refresh_rules()
 	_update_hud()
 
@@ -110,6 +121,52 @@ func _start_hour() -> void:
 	hour_timer.start(cfg.hour_seconds)
 	spawn_timer.start(cfg.note_seconds)  # first tray once the note has been read
 	Sfx.play("clock_in")
+	_set_loops(true)
+
+
+## The factory hum and the music run only while working; the music gets a little faster every hour.
+func _set_loops(on: bool) -> void:
+	Sfx.loop("hum", on)
+	Sfx.loop("music", on, 1.0 + MUSIC_STEP * maxi(logic.hour, 0))
+
+
+## Esc / P during a shift (#31). Everything on the game clock (belt, PA, flicker, emergency stop)
+## stops because _physics_process skips logic.tick(); the two Timers are paused by hand.
+func _set_paused(on: bool) -> void:
+	paused = on
+	spawn_timer.paused = on or logic.is_stopped()
+	hour_timer.paused = spawn_timer.paused
+	_set_loops(not on)
+	if on:  # out of the card's way; _physics_process brings them back on resume
+		note_card.hide()
+		pa_banner.hide()
+	_show_pause()
+
+
+func _show_pause() -> void:
+	_show("PAUSED\n\nEsc / P    back to work\nM    sound: %s\nQ    quit to the title (this night won't count)"
+		% ("OFF" if records.muted else "ON") if paused else "")
+
+
+## M on the title or the pause menu. Mutes the master bus and remembers it.
+func _toggle_mute() -> void:
+	records.muted = not records.muted
+	AudioServer.set_bus_mute(0, records.muted)
+	Records.save_file(records, records_path)
+	_show_pause()
+
+
+## Folds the finished night into the record book and saves it. Returns what it beat, for a NEW BEST line.
+func _record_night(survived: bool) -> String:
+	var beaten := Records.describe(Records.merge(records, logic, survived))
+	Records.save_file(records, records_path)
+	return beaten
+
+
+## Losing focus mid-shift (alt-tab, clicking off the browser tab) pauses, so the belt doesn't run on unseen.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and state == State.PLAYING and not paused:
+		_set_paused(true)
 
 
 func _on_hour_over() -> void:
@@ -123,8 +180,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var side := _side(key)
 	if state == State.PLAYING:
-		if side != "":
+		if key.keycode in [KEY_ESCAPE, KEY_P]:
+			_set_paused(not paused)
+		elif paused and key.keycode == KEY_M:
+			_toggle_mute()
+		elif paused and key.keycode == KEY_Q:
+			_enter(State.MENU)
+		elif side != "" and not paused:
 			_on_shift(side)
+		return
+	if state == State.MENU and key.keycode == KEY_M:
+		_toggle_mute()
 		return
 	if state == State.SHOP and side != "":
 		shop.selected = wrapi(shop.selected + (-1 if side == "left" else 1), 0, shop.items.size())
@@ -199,7 +265,7 @@ func _checkout() -> void:
 # --- belt ------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if state != State.PLAYING:
+	if state != State.PLAYING or paused:
 		return
 	var step := logic.tick(delta)
 	spawn_timer.paused = logic.is_stopped()

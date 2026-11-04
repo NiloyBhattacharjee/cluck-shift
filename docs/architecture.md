@@ -8,7 +8,7 @@ For the game rules themselves, see [design.md](design.md).
 ```
 cluck_shift/
 ├── project.godot          # 960x540, GL Compatibility renderer, Sfx autoload, main scene
-├── export_presets.cfg     # "Web" preset: no threads, so it runs on itch.io without special headers
+├── export_presets.cfg     # "Web" (no threads, runs on itch.io without special headers) and "Windows Desktop" (one .exe)
 ├── data/
 │   └── rules.json         # starting routes, the 8 hours (belt + supervisor note), pay, strikes (docs/data-format.md)
 ├── scenes/
@@ -16,17 +16,18 @@ cluck_shift/
 │   └── tray.tscn          # one tray (Area2D)
 ├── scripts/
 │   ├── shift_state.gd     # ShiftState: every rule of the night, no nodes (the part the tests drive)
-│   ├── main.gd            # scene glue: state machine, input, spawning, moving trays, HUD, shop, PA
+│   ├── records.gd         # Records: the record book and mute setting in user://records.cfg
+│   ├── main.gd            # scene glue: state machine, input, spawning, moving trays, HUD, shop, PA, pause
 │   ├── belt.gd            # Belt: draws belt, fork, gates, bins; owns the layout points
 │   ├── tray.gd            # Tray: path following and drawing
 │   ├── juice.gd           # Juice: popups, particle puffs, screen shake (show only, no rules)
 │   ├── title.gd           # the title screen, drawn with shapes
 │   ├── shop_view.gd       # the break-room vending machine, drawn with shapes
-│   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip), drawn with shapes
+│   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip, ledger chart), drawn with shapes
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
-│   ├── test_logic.gd      # 189 checks on ShiftState, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (163 checks)
+│   ├── test_logic.gd      # 201 checks on ShiftState, Records, Tray.advance and rules.json
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (188 checks)
 └── docs/                  # this folder
 ```
 
@@ -52,7 +53,7 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
     ├── PABanner (ColorRect)              PA announcement over the top of the belt (blue; green for radio clucks)
     │   └── Text (Label)
     ├── Hazard (ColorRect)                full-screen red tint, pulses during an emergency stop
-    ├── Dim (ColorRect)                   overlay for the hour tally / game over / win
+    ├── Dim (ColorRect)                   overlay for the hour tally / game over / pause card
     │   └── Message (Label)
     ├── Shop (Control)        shop_view.gd  the break room, visible only in SHOP
     ├── Title (Control)       title.gd      the title screen, visible only in MENU
@@ -70,8 +71,9 @@ Autoload: `Sfx` (`scripts/sfx.gd`), one `AudioStreamPlayer` per named sound, eac
 | `belt.gd` (`Belt`) | Layout constants (`SPAWN`, `FORK`, `EXITS`, `FLOOR`, `DECISION_Y`) and drawing the line, the swing flash and bin labels | Game logic |
 | `tray.gd` (`Tray`) | Its kind and stamp, art for every kind (`FOOD`) and stamp (`STAMPS`), its remaining path, whether it has been routed or is falling, its result outline | Deciding where it goes |
 | `juice.gd` (`Juice`) | Popups, puffs, camera shake (trauma) | Anything that affects the score |
-| `title.gd`, `shop_view.gd` | Drawing the title and the vending machine from the values main.gd sets | Input or buying |
-| `sfx.gd` (`Sfx`) | Synthesizing and playing named sounds, the hum loop | Knowing when to play |
+| `records.gd` (`Records`, static) | Loading and saving `user://records.cfg`; `merge()` folds a finished night into the records and says which it beat | Knowing when a night ends (main.gd calls it from GAME_OVER and WIN) |
+| `title.gd`, `shop_view.gd`, `ending.gd` | Drawing the title (with the best night), the vending machine and the 6 AM ending (with the ledger chart) from the values main.gd sets | Input or buying |
+| `sfx.gd` (`Sfx`) | Synthesizing and playing named sounds, the hum and music loops | Knowing when to play |
 
 The split exists for one reason: **every rule is in a class with no nodes, so it can be tested directly** and the
 scene can be rebuilt (Phase 3 art and juice) without touching a rule.
@@ -124,6 +126,8 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
 `main._unhandled_input` receives key events:
 
 - Released keys and echo (auto-repeat) events are ignored.
+- In PLAYING, Esc or P toggles `paused` (#31). While paused, M toggles mute, Q quits to MENU, and Shift is ignored.
+- In MENU, M toggles mute.
 - In SHOP, Left / Right Shift move `shop.selected` (wrapping).
 - Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING, HOUR_END to SHOP (or WIN after 5 AM),
   SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER and WIN to MENU.
@@ -133,7 +137,7 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
   and / is right, and the title and HUD say so (#22).
   `logic.press_shift(side)` returns `toggle`, `estop` or `denied`, which picks the sound.
 
-Using `_unhandled_input` (not `_input`) means a future pause menu or UI control can consume keys first.
+Using `_unhandled_input` (not `_input`) means a UI control can consume keys first.
 
 ## How to change things
 
@@ -194,3 +198,15 @@ Every rule is in `ShiftState`; main.gd only shows it. Design and diagrams: [desi
 Edit `strange.radio` or `strange.flicker` in rules.json. The data tests check the radio still hints at STRAIGHT and
 DOCK, the flicker windows fit the cycle, the lights are on most of the time and there are never more than 2 flashes
 in a second.
+
+## Polish (Phase 5)
+
+Design and diagrams: [design.md section 23](design.md#23-polish-phase-5).
+
+| Piece | Where | How |
+|---|---|---|
+| Pause | `main.gd`: `paused`, `_set_paused()` | `_physics_process` returns before `logic.tick()`, so everything on the game clock stops; the two Timers are paused by hand; `NOTIFICATION_APPLICATION_FOCUS_OUT` pauses too |
+| Mute | `main.gd`: `_toggle_mute()` | `AudioServer.set_bus_mute(0, ...)`, saved as `records.muted` |
+| Records | `records.gd`, `main._record_night()` | Loaded in `_ready` from `records_path` (the play test points it at a scratch file); merged and saved on GAME_OVER and WIN; the title draws them |
+| Ledger | `ShiftState.ledger`, `ending._draw_ledger()` | `end_hour()` appends each tally; WIN passes the list to `show_ending()` |
+| Music | `Sfx._music()`, `main._set_loops()` | A synthesized 4 s loop, started with the hum in `_start_hour()` with `pitch_scale = 1 + MUSIC_STEP * hour` |

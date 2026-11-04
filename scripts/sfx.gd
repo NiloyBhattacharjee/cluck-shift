@@ -1,9 +1,12 @@
 extends Node
-## Sound hooks: Sfx.play("gate_click"), Sfx.play("ding", 1.2) for a higher pitch, Sfx.loop("hum").
+## Sound hooks: Sfx.play("gate_click"), Sfx.play("ding", 1.2) for a higher pitch, Sfx.loop("hum", true).
 ## Every sound is synthesized here at start-up (noise bursts, pitch sweeps, envelopes), so the game
 ## ships with no audio files and no licences to track. Unknown names are ignored.
 
 const RATE := 22050
+const STEP := 0.25  # music: one eighth note at 120 bpm
+const BASS := [110.0, 110.0, 130.81, 110.0, 146.83, 110.0, 164.81, 98.0,  # A A C A D A E G
+	110.0, 110.0, 130.81, 110.0, 146.83, 164.81, 146.83, 130.81]  # A A C A D E D C
 
 var _players := {}
 
@@ -24,6 +27,8 @@ func _ready() -> void:
 	_add("radio", 1.0, func(t): return (_noise() * 0.25 + sin(TAU * _sweep(fmod(t, 0.16), 820.0, 430.0, 0.16)) * _decay(fmod(t, 0.16), 14.0) * float(fmod(t, 0.32) < 0.16)) * _fade(t, 1.0) * 0.55)
 	_add("flicker", 0.16, func(t): return _square(100.0 * t) * (0.5 + 0.5 * _noise()) * _fade(t, 0.16) * 0.3)
 	_add("hum", 1.0, func(t): return (sin(TAU * 55.0 * t) + 0.5 * sin(TAU * 110.0 * t) + _noise() * 0.08) * 0.12, true)
+	_add("music", STEP * BASS.size(), func(t): return _music(t), true)
+	_players.music.volume_db = -14.0  # under the gameplay sounds
 
 
 func play(sound: String, pitch := 1.0) -> void:
@@ -32,7 +37,10 @@ func play(sound: String, pitch := 1.0) -> void:
 		_players[sound].play()
 
 
-func loop(sound: String, on: bool) -> void:
+## Starts or stops a looping sound. `pitch` above 1 plays it faster (the music speeds up each hour).
+func loop(sound: String, on: bool, pitch := 1.0) -> void:
+	if _players.has(sound):
+		_players[sound].pitch_scale = pitch
 	if _players.has(sound) and _players[sound].playing != on:
 		if on:
 			_players[sound].play()
@@ -58,6 +66,19 @@ func _add(sound: String, seconds: float, wave: Callable, looping := false) -> vo
 	p.volume_db = -6.0
 	add_child(p)
 	_players[sound] = p
+
+
+## The shift music (#34): two bars at 120 bpm of plucked bass, a kick on every beat and a hi-hat
+## on the off-beats. Each bass note fades in and out over a few milliseconds, so the loop never clicks.
+static func _music(t: float) -> float:
+	var step := int(t / STEP)
+	var into := t - step * STEP
+	var f: float = BASS[step % BASS.size()]
+	var bass := (sin(TAU * f * t) + 0.3 * _square(f * t)) * _decay(into, 5.0) * minf(into * 300.0, 1.0) * clampf((STEP - into) * 300.0, 0.0, 1.0)
+	var beat := fmod(t, STEP * 2.0)
+	var kick := sin(TAU * _sweep(beat, 120.0, 45.0, STEP * 2.0)) * _decay(beat, 14.0)
+	var hat := _noise() * _decay(into, 70.0) * float(step % 2 == 1)
+	return bass * 0.35 + kick * 0.5 + hat * 0.12
 
 
 static func _noise() -> float:

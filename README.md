@@ -14,12 +14,13 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 | | |
 |---|---|
 | ![Title screen](docs/images/title.png) | ![The break room](docs/images/shop.png) |
-| ![2 AM: something on the radio](docs/images/strange.png) | ![6 AM](docs/images/ending_normal.png) |
+| ![2 AM: something on the radio](docs/images/strange.png) | ![6 AM, with the night's ledger](docs/images/ending_ledger.png) |
 
-> **Status: all 4 phases done.** A title screen, eight hours with a rule change each hour, stamps, PA distractions,
-> a break-room shop between hours, popups, particles, screen shake and synthesized sounds. From 2 AM the night gets
-> strange: odd trays, flickering lights and something clucking on the radio. Two endings at 6 AM, one of them secret.
-> See the [roadmap](#roadmap).
+> **Status: all 5 phases done.** A title screen, eight hours with a rule change each hour, stamps, PA distractions,
+> a break-room shop between hours, popups, particles, screen shake, synthesized sounds and music. From 2 AM the night
+> gets strange: odd trays, flickering lights and something clucking on the radio. Two endings at 6 AM, one of them
+> secret, with an hour-by-hour chart of your night. Esc pauses, M mutes, and your best night is saved. See the
+> [roadmap](#roadmap).
 
 ## Play it
 
@@ -28,6 +29,8 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
   physical keyboard.
 - **Download and run it yourself:** on GitHub press **Code > Download ZIP** (or `git clone` this repo), unzip it,
   then follow [Run it](#run-it) below. You need the free Godot 4.7 editor.
+- **Windows download:** if the itch.io page offers `Cluck Shift.exe`, download it and double-click. No install. Windows
+  SmartScreen warns about unsigned apps: **More info > Run anyway**.
 
 ## Controls
 
@@ -38,8 +41,11 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 | **Both Shifts together** | Emergency stop: the belt and the clock halt for 2.5 s (3 per night) |
 | Left / Right Shift in the break room | Choose an item |
 | Enter / Space | Menus; buy in the break room |
+| Esc or P | Pause (and resume) mid-shift; Q on the pause card quits to the title |
+| M | Sound on / off, on the title or the pause card (remembered) |
 
-With both gates closed, trays go straight on. Opening one gate closes the other. No mouse, no other keys.
+With both gates closed, trays go straight on. Opening one gate closes the other. No mouse; the sorting itself is
+only ever the Shift keys.
 
 **How a night goes:** at 10 PM wings go LEFT, drumsticks RIGHT, nuggets STRAIGHT. At the start of every hour the
 supervisor's sticky note changes one rule: nuggets move, red-stamped trays go to the bin, tenders appear, the chutes
@@ -69,19 +75,20 @@ From a terminal: `godot --path .`
 
 ```bash
 godot --headless --path . --import                                # once, after cloning
-godot --headless --path . -s tests/test_logic.gd                  # 189 rule checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop included (163 checks)
+godot --headless --path . -s tests/test_logic.gd                  # 201 rule and record checks
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (188 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).
 
-## Export for the web (itch.io)
+## Export for itch.io
 
 ```bash
 godot --headless --path . --export-release "Web" build/web/index.html
+godot --headless --path . --export-release "Windows Desktop" "build/windows/Cluck Shift.exe"
 ```
 
-Needs the Godot 4.7.2 web export templates. The preset has thread support off, so the build runs on itch.io with no
+Needs the Godot 4.7.2 web and Windows export templates. The preset has thread support off, so the build runs on itch.io with no
 special headers. Upload steps: [docs/releasing.md](docs/releasing.md).
 
 ## Add or change a rule
@@ -114,7 +121,7 @@ perfect player can still sort the whole night. Field reference: [docs/data-forma
 
 | Doc | What's in it |
 |---|---|
-| [docs/design.md](docs/design.md) | Game design: core loop, gate and game state machines, emergency stop logic, scoring formulas, difficulty curve, shop, PA, the strange night and both endings, with diagrams (spoilers) |
+| [docs/design.md](docs/design.md) | Game design: core loop, gate and game state machines, emergency stop logic, scoring formulas, difficulty curve, shop, PA, the strange night and both endings, pause, records, ledger and music, with diagrams (spoilers) |
 | [docs/architecture.md](docs/architecture.md) | Scene tree, which script owns what, the frame and input flow, how to extend it |
 | [docs/data-format.md](docs/data-format.md) | Every field in `rules.json` |
 | [docs/testing.md](docs/testing.md) | What the tests prove, and the manual playtest checklist |
@@ -126,14 +133,15 @@ perfect player can still sort the whole night. Field reference: [docs/data-forma
 data/rules.json        rules and tuning
 scenes/                main.tscn (the game), tray.tscn
 scripts/shift_state.gd every rule of the night, no nodes: what the tests drive
-scripts/main.gd        game states, input, spawning, HUD
+scripts/main.gd        game states, input, spawning, HUD, pause and mute
+scripts/records.gd     best-night records and the mute setting, saved between sessions
 scripts/belt.gd        draws the belt, fork, gates and bins
 scripts/tray.gd        a tray: movement and drawing
 scripts/juice.gd       popups, particle puffs, screen shake
 scripts/title.gd       the title screen
 scripts/shop_view.gd   the break-room vending machine
-scripts/ending.gd      the two 6 AM endings
-scripts/sfx.gd         every sound, synthesized at start-up
+scripts/ending.gd      the two 6 AM endings and the hour-by-hour chart
+scripts/sfx.gd         every sound and the music, synthesized at start-up
 tests/                 headless test scripts
 ```
 
@@ -145,6 +153,7 @@ tests/                 headless test scripts
 | 2 | 10 PM to 6 AM night clock, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, 6 AM win | Done |
 | 3 | Break-room shop (Coffee, Mate's Help, Earplugs), PA distractions, screen shake, particles, popups, synthesized sounds, title screen | Done |
 | 4 | Strange trays from 2 AM, flickering lights, radio glitches, normal and secret endings | Done |
+| 5 | Esc pause and mute, saved best-night records, the 6 AM ledger chart, music that speeds up, a Windows .exe | Done |
 
 Each item is a [GitHub issue](../../issues). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
@@ -156,7 +165,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Keep it cartoony: no gore.
 
 Cluck Shift was made with Claude (Anthropic) as the programmer. All the code, writing, art and sound were produced
 with AI assistance, directed by the author. The game ships no image, audio or font files: the art is drawn in code
-(Godot's draw functions), the sounds are synthesized in code (`scripts/sfx.gd`), and the text uses Godot's built-in
+(Godot's draw functions), the sounds and music are synthesized in code (`scripts/sfx.gd`), and the text uses Godot's built-in
 font. No AI image or music generators were used.
 
 ## Licence

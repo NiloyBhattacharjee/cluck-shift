@@ -4,13 +4,17 @@ extends SceneTree
 ##    emergency stop, buys Coffee, Mate's Help and Earplugs in the break room, makes one deliberate
 ##    mistake for the mate to cover, and must finish with no strikes and a clean-hour bonus every hour.
 ##    From 2 AM it sends every strange tray straight on, so it must get the secret ending.
+##    Also: M mutes on the title, Esc pauses (everything freezes, Shift does nothing), the music runs
+##    only while working, the 6 AM ledger has every hour and the record book is saved.
 ## 2) Idle night: a late Shift press makes a tray miss the gate; with no other presses the player
 ##    is sent home in the first hour, the belt freezes, and Enter goes back to the title for a clean start.
+##    Esc then Q quits a night to the title without it counting as a night played.
 ## Run: godot --headless --fixed-fps 60 -s tests/test_play.gd     (exit code 0 = all passed)
 
 const FPS := 60
 const LIMIT := 12 * 80 * FPS  # hard stop: a broken run fails instead of hanging
 const SHOP_PLAN := {1: ["coffee", 1], 2: ["mate", 2], 3: ["earplugs", -1]}  # after hour n: item, Right(+)/Left(-) presses from Skip
+const RECORDS := "user://test_play_records.cfg"  # never the player's own record book
 
 var Main: Script  # loaded after autoloads exist, so main.gd can see Sfx
 var main: Node
@@ -33,12 +37,15 @@ var dark_by_hour := {}  # hour -> the lights went out
 var radio_seen := false
 var escape_popup_seen := false
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
+var pause_checked := false
 var failures := 0
 
 
 func _initialize() -> void:
 	Main = load("res://scripts/main.gd")
+	DirAccess.remove_absolute(RECORDS)
 	main = load("res://scenes/main.tscn").instantiate()
+	main.records_path = RECORDS
 	root.add_child(main)
 	cfg = main.cfg
 
@@ -66,7 +73,12 @@ func _night() -> void:
 		Main.State.MENU:
 			if in_state == 2:
 				check(main.title.visible and not main.dim.visible and not main.shop.visible, "game opens on the title screen")
-				check(not _hum(), "no factory hum on the title")
+				check(not _hum() and not _music(), "no factory hum or music on the title")
+				check(main.records == Records.BLANK, "a fresh record book: no nights yet, sound on")
+				_key(KEY_M)
+				check(AudioServer.is_bus_mute(0) and Records.load_file(RECORDS).muted, "M on the title mutes the sound and remembers it")
+				_key(KEY_M)
+				check(not AudioServer.is_bus_mute(0) and not Records.load_file(RECORDS).muted, "M again turns it back on")
 				_key(KEY_ENTER)
 				main.logic.rng.seed = 2026  # the same night every run; the hour's first tray spawns after the note
 		Main.State.PLAYING:
@@ -77,7 +89,7 @@ func _night() -> void:
 				hours_done += 1
 				bonuses += int(("Clean hour bonus: $%d" % int(cfg.clean_hour_bonus)) in main.message.text)
 				check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "%s: belt cleared at the end of the hour" % name)
-				check(not main.pa_banner.visible and not _hum(), "%s: PA banner and hum off on the tally" % name)
+				check(not main.pa_banner.visible and not _hum() and not _music(), "%s: PA banner, hum and music off on the tally" % name)
 				if main.logic.hour == 0:
 					check(puffs_seen, "a puff of feathers when a tray lands in its bin")
 					check(pay_popup_seen, "a +$ popup for a correct tray")
@@ -119,6 +131,10 @@ func _night() -> void:
 				check(e.visible and not main.dim.visible and e.secret and e.heading == cfg.endings.secret.title, "all strange trays let through: the secret ending (%s)" % e.heading)
 				check(["Take-home pay", "$%d" % s.wallet()] in e.slip and ["Break room", "-$%d" % s.spent] in e.slip, "the payslip shows earned, spent and take-home pay")
 				check(["Let through to the dock", "%d of %d" % [strange, strange]] in e.slip, "the payslip counts the strange trays let through")
+				check(e.ledger.size() == cfg.hours.size() and e.ledger.all(func(h): return h.strikes == 0 and h.bonus > 0), "the ledger chart has all %d hours, every one clean" % cfg.hours.size())
+				var rec := Records.load_file(RECORDS)
+				check(rec.nights == 1 and rec.survived == 1 and rec.best_pay == s.wallet() and rec.secret, "the night went in the record book: $%d take-home, secret found" % rec.best_pay)
+				check(e.best.contains("take-home pay") and e.best.contains("secret ending found"), "the payslip says NEW BEST (%s)" % e.best)
 				s.escaped -= 1  # had one been caught
 				main._enter(Main.State.WIN)
 				check(not e.secret and e.heading == cfg.endings.normal.title and e.visible, "one strange tray caught: the normal ending (%s)" % e.heading)
@@ -144,7 +160,9 @@ func _night_playing() -> void:
 		if s.hour == 3:
 			check(s.earplugs, "%s: earplugs in" % name)
 	if in_state == 10:
-		check(_hum(), "%s: factory hum while working" % name)
+		check(_hum() and _music(), "%s: factory hum and music while working" % name)
+		var pitch: float = root.get_node("Sfx")._players.music.pitch_scale
+		check(is_equal_approx(pitch, 1.0 + Main.MUSIC_STEP * s.hour), "%s: the music speeds up with the hour (x%.2f)" % [name, pitch])
 	if main.pa_banner.visible:
 		pa_seen_by_hour[s.hour] = true
 		radio_seen = radio_seen or main.pa_banner.get_node("Text").text.begins_with("RADIO?")
@@ -165,6 +183,10 @@ func _night_playing() -> void:
 		if not stop_checked:
 			_check_emergency_stop()
 			if not stop_checked:
+				return
+		if not pause_checked:
+			_check_pause()
+			if not pause_checked:
 				return
 	if s.hour == 2 and s.mates == 1 and sabotage == null:
 		_sabotage()
@@ -197,6 +219,40 @@ func _check_emergency_stop() -> void:
 		frozen = {}
 	elif in_state < at - 20 and in_state > 1:
 		_autoplay()
+
+
+## Right after the emergency stop check: Esc pauses, everything freezes for a second, Shift does nothing,
+## M mutes from the pause card, then Esc goes back to work.
+func _check_pause() -> void:
+	if frozen.is_empty():
+		if total - last_press < 15 or main.logic.is_swinging() or main.logic.is_stopped():
+			_autoplay()
+			return
+		_key(KEY_ESCAPE)
+		frozen = _positions()
+		frozen["clock"] = main.logic.clock
+		frozen["hour_left"] = main.hour_timer.time_left
+		frozen["route"] = main.logic.route
+		frozen["at"] = in_state
+		check(main.paused and main.dim.visible and main.message.text.begins_with("PAUSED"), "Esc pauses: the PAUSED card shows")
+		check(not _hum() and not _music(), "paused: hum and music stop")
+		_key(KEY_SHIFT, KEY_LOCATION_LEFT)
+		check(main.logic.route == frozen.route, "paused: Shift moves no gate")
+		_key(KEY_M)
+		check(AudioServer.is_bus_mute(0) and "sound: OFF" in main.message.text, "M on the pause card mutes")
+		_key(KEY_M)
+	elif in_state == frozen.at + 60:
+		var now := _positions()
+		now["clock"] = main.logic.clock
+		now["hour_left"] = main.hour_timer.time_left
+		now["route"] = main.logic.route
+		now["at"] = frozen.at
+		check(now == frozen, "a second paused: trays, game clock and hour timer don't move")
+		check(main.spawn_timer.paused and main.hour_timer.paused, "paused: spawn and hour timers are paused")
+		_key(KEY_ESCAPE)
+		check(not main.paused and not main.dim.visible and _hum() and _music(), "Esc again: back to work, sound back")
+		pause_checked = true
+		frozen = {}
 
 
 ## Sends the front tray to a wrong exit on purpose, once, for the mate to cover.
@@ -263,6 +319,8 @@ func _idle() -> void:
 				check(s.strikes == int(cfg.strikes_allowed) and s.hour == 0, "idle player is sent home in the first hour")
 				check(main.message.text.begins_with("SENT HOME at 10:"), "game over screen shows the time")
 				check(main.juice.trauma > 0.5, "being sent home shakes the screen")
+				var rec := Records.load_file(RECORDS)
+				check(rec.nights == 3 and rec.survived == 2, "a night sent home still counts as a night played")  # the win was entered twice above
 				frozen = _positions()
 			elif in_state == 60:
 				check(_positions() == frozen, "belt is frozen after game over")
@@ -287,6 +345,12 @@ func _idle() -> void:
 					check(main.stats.text.ends_with("GATES  Z  and  /"), "the HUD shows the backup keys")
 					_key(KEY_Z)
 					check(n.route == "left", "then Z works the left gate")
+					_key(KEY_P)
+					check(main.paused, "P pauses too")
+					_key(KEY_Q)
+					check(main.state == Main.State.MENU and not main.paused and main.title.visible, "Q on the pause card quits to the title")
+					check(Records.load_file(RECORDS).nights == 3, "a night quit from the pause card doesn't count")
+					DirAccess.remove_absolute(RECORDS)
 					_finish()
 
 
@@ -307,6 +371,10 @@ func _autoplay() -> void:
 
 func _hum() -> bool:  # Sfx is an autoload; looked up at runtime because this script compiles before it exists
 	return root.get_node("Sfx")._players.hum.playing
+
+
+func _music() -> bool:
+	return root.get_node("Sfx")._players.music.playing
 
 
 func _front() -> Tray:

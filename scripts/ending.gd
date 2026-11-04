@@ -1,5 +1,6 @@
 extends Control
 ## The 6 AM ending, drawn with shapes over a dawn sky. Shown only in WIN.
+## Beside the payslip, the night's ledger: pay per hour as bars, strikes as red marks (#33).
 ## Normal: your payslip, and the night bus pulling away with you on it.
 ## Secret (every strange tray sent straight on): The Great Escape, delivery trucks leaving the
 ## loading dock driven by chickens in sunglasses.
@@ -12,14 +13,18 @@ var secret := false
 var heading := ""
 var text := ""
 var slip: Array = []  # payslip rows: [label, value]
+var ledger: Array = []  # ShiftState.ledger: one tally per hour
+var best := ""  # records beaten tonight, "" if none (#32)
 var _since := 0.0  # seconds the ending has been up: drives the sunrise and the traffic
 
 
-func show_ending(is_secret: bool, words: Dictionary, rows: Array) -> void:
+func show_ending(is_secret: bool, words: Dictionary, rows: Array, hours: Array = [], beaten := "") -> void:
 	secret = is_secret
 	heading = words.title
 	text = words.text
 	slip = rows
+	ledger = hours
+	best = beaten
 	_since = 0.0
 	show()
 
@@ -63,8 +68,34 @@ func _draw() -> void:
 		var y := paper.position.y + 54 + i * 24
 		draw_string(font, Vector2(paper.position.x + 18, y), slip[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
 		draw_string(font, Vector2(paper.position.x, y), slip[i][1], HORIZONTAL_ALIGNMENT_RIGHT, paper.size.x - 18, 16, INK)
+	if best != "":
+		var y := paper.end.y + 26
+		draw_string_outline(font, Vector2(0, y), "NEW BEST: " + best, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, 6, Color.BLACK)
+		draw_string(font, Vector2(0, y), "NEW BEST: " + best, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, HAT)
+	if not ledger.is_empty():
+		_draw_ledger(Rect2(662, 108, 270, 190))
 	if fmod(t, 1.0) < 0.7:
 		draw_string(font, Vector2(0, 528), "PRESS ENTER", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, Color.WHITE)
+
+
+## One bar per hour, its height the hour's pay plus bonus; amber with a red X per strike, green if clean.
+func _draw_ledger(box: Rect2) -> void:
+	var font := ThemeDB.fallback_font
+	draw_rect(box, Color(0, 0, 0, 0.35))
+	draw_string(font, box.position + Vector2(0, 22), "HOUR BY HOUR", HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 15, PAPER)
+	var top := 1
+	for h: Dictionary in ledger:
+		top = maxi(top, h.pay + h.bonus)
+	var slot := box.size.x / ledger.size()
+	var base := box.end.y - 26
+	for i in ledger.size():
+		var h: Dictionary = ledger[i]
+		var tall: float = (base - box.position.y - 52) * (h.pay + h.bonus) / top
+		var x := box.position.x + i * slot + slot * 0.2
+		draw_rect(Rect2(x, base - tall, slot * 0.6, tall), Color("9ccc65") if h.strikes == 0 else Color("ffa726"))
+		for k in h.strikes:
+			draw_string(font, Vector2(x, base - tall - 4 - k * 14), "X", HORIZONTAL_ALIGNMENT_CENTER, slot * 0.6, 14, Color("ef5350"))
+		draw_string(font, Vector2(x - slot * 0.2, base + 18), h.from.split(" ")[0], HORIZONTAL_ALIGNMENT_CENTER, slot, 13, PAPER)
 
 
 func _draw_bus(at: Vector2) -> void:

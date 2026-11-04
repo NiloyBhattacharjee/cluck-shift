@@ -8,6 +8,7 @@ const HI_VIS := Color("ff8f00")
 const HAT := Color("ffca28")
 
 var backup_keys := false  # set by main.gd when Shift arrives with no left/right (#22)
+var records := {}  # main.gd's record book (#32): best night and the mute setting
 
 
 func _process(_delta: float) -> void:
@@ -30,6 +31,8 @@ func _draw() -> void:
 	draw_string_outline(font, Vector2(0, 110), "CLUCK SHIFT", HORIZONTAL_ALIGNMENT_CENTER, size.x, 72, 12, Color.BLACK)
 	draw_string(font, Vector2(0, 110), "CLUCK SHIFT", HORIZONTAL_ALIGNMENT_CENTER, size.x, 72, HAT)
 	draw_string(font, Vector2(0, 148), "the night shift at the packing line, 10 PM to 6 AM", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, INK)
+	if records.get("nights", 0) > 0:
+		draw_string(font, Vector2(0, 180), _best_line(), HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color("90a4ae"))
 
 	_draw_chicken(Vector2(210, 330 + sin(t * 3.0) * 4.0))
 
@@ -38,9 +41,10 @@ func _draw() -> void:
 		["RIGHT SHIFT", "open / close the right gate"],
 		["BOTH SHIFTS", "emergency stop (3 per night)"],
 		["ENTER", "menus and the break-room shop"],
+		["ESC  /  M", "pause  /  sound " + ("(now OFF)" if records.get("muted", false) else "on-off")],
 	]
 	for i in lines.size():
-		var y := 215 + i * 34
+		var y := 215 + i * 30
 		draw_string(font, Vector2(400, y), lines[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, HAT)
 		draw_string(font, Vector2(560, y), lines[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, INK)
 	draw_string(font, Vector2(400, 370), "Set the gate before each tray hits the red line.", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, INK)
@@ -54,6 +58,18 @@ func _draw() -> void:
 		draw_string(font, Vector2(0, 458), "PRESS ENTER TO CLOCK IN", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, HAT)
 	draw_string(font, Vector2(0, 528), "Windows: turn off the Sticky Keys shortcut first (Settings > Accessibility > Keyboard).   Game Off 2026: SHIFT",
 		HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color("90a4ae"))
+
+
+## "BEST NIGHT $1,240 take-home   BEST COMBO 31   2 of 5 nights survived   SECRET ENDING FOUND"
+func _best_line() -> String:
+	var parts := PackedStringArray()
+	if records.survived > 0:
+		parts.append("BEST NIGHT  $%d take-home" % records.best_pay)
+	parts.append("BEST COMBO  %d" % records.best_combo)
+	parts.append("%d of %d nights survived" % [records.survived, records.nights])
+	if records.secret:
+		parts.append("SECRET ENDING FOUND")
+	return "     ".join(parts)
 
 
 func _draw_chicken(at: Vector2) -> void:
