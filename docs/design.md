@@ -757,6 +757,8 @@ also leave fullscreen in a browser, so **P** does the same job.
 
 Mute sets the master audio bus mute and is saved in the record book, so it survives a reload.
 
+![The pause card](images/pause.png)
+
 ### 23.2 The record book (#32)
 
 `scripts/records.gd` keeps a dictionary in `user://records.cfg` (a `ConfigFile`; on the web Godot stores `user://` in
