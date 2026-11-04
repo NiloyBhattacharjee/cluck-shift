@@ -50,3 +50,5 @@ func _draw() -> void:
 			lines = ["(empty)"]
 		for i in lines.size():
 			draw_string(font, bin.position + Vector2(0, 18 + i * 16 + (3 - lines.size()) * 8), lines[i], HORIZONTAL_ALIGNMENT_CENTER, 150, 13)
+	# straight on is the loading dock: the radio's hint points here
+	draw_string(font, EXITS.center + Vector2(-75, 57), "TO LOADING DOCK", HORIZONTAL_ALIGNMENT_CENTER, 150, 11, Color("90a4ae"))

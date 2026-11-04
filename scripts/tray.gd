@@ -7,6 +7,7 @@ const FOOD := {
 	"drumstick": Color("a1653a"),
 	"nugget": Color("ffd54f"),
 	"tender": Color("d4a373"),
+	"stranger": Color("c8a165"),  # trench coat: the strange tray (ShiftState.STRANGE)
 }
 const STAMPS := {"red": Color("e53935"), "blue": Color("1e88e5")}
 
@@ -51,6 +52,14 @@ func _draw() -> void:
 				draw_line(Vector2(-16, y), Vector2(12, y - 3), FOOD.tender, 8)
 				draw_circle(Vector2(-16, y), 4, FOOD.tender)
 				draw_circle(Vector2(12, y - 3), 4, FOOD.tender)
+		"stranger":  # a chicken in a trench coat and sunglasses, trying to look like a nugget
+			draw_colored_polygon(PackedVector2Array([Vector2(-15, 16), Vector2(-9, 2), Vector2(9, 2), Vector2(15, 16)]), FOOD.stranger)
+			draw_line(Vector2(0, 3), Vector2(0, 16), Color("8d6e63"), 2)
+			for i in 3:
+				draw_circle(Vector2(-5 + i * 5, -15), 3, Color("e53935"))
+			draw_circle(Vector2(0, -6), 9, Color("fafafa"))
+			draw_rect(Rect2(-9, -10, 18, 5), Color("212121"))
+			draw_colored_polygon(PackedVector2Array([Vector2(8, -4), Vector2(15, -2), Vector2(8, 0)]), Color("ffa000"))
 	if stamp != "":  # red is a round stamp, blue a diamond, so they differ without colour
 		var c: Color = STAMPS.get(stamp, Color.GRAY)
 		var at := Vector2(17, -9)

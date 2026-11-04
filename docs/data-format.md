@@ -21,6 +21,8 @@ the night, never the file's data. Edit it, relaunch, and run the tests.
 | `coffee_factor` | number, 0.5 to 1 | Coffee multiplies belt speed by this and divides the tray interval by it. |
 | `shop` | array of items | The break-room items, in display order (Skip is added by the game). |
 | `pa` | object | PA announcements (below). |
+| `strange` | object | The strange night from 2 AM: strange trays, radio clucks, flickering lights (below). |
+| `endings` | object | Title and line for the `normal` and `secret` 6 AM endings (below). |
 | `hours` | array of 8 hour objects | 10 PM first, 5 AM last. |
 
 ## Hour object
@@ -91,6 +93,42 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 | `seconds` | How long the banner stays up. |
 | `lines` | What the PA says, picked at random. |
 
+## Strange object
+
+```json
+"strange": {
+  "from_hour": 4, "chance": 0.06, "max_per_hour": 4,
+  "radio_chance": 0.5, "radio": ["...kssh... bawk... STRAIGHT on... bawk bawk... kssh...", "..."],
+  "flicker": { "every": 9, "dark": [[0, 0.2], [0.45, 1.2]] }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `from_hour` | First strange hour (4 = 2 AM). Must be at or after `pa.from_hour`, so the radio has a PA to cut into. |
+| `chance` | Chance that a new tray is strange (a chicken in sunglasses and a trench coat). |
+| `max_per_hour` | Most strange trays in one hour. |
+| `radio_chance` | Chance that a PA announcement is clucking on the radio instead. |
+| `radio` | What the radio says. These are the hints for the secret ending. |
+| `flicker.every` | Length of one flicker cycle in seconds of game clock. |
+| `flicker.dark` | `[start, end]` windows inside each cycle when the lights are out. |
+
+The data tests fail if `from_hour` is before the PA or past the night, `chance` is not in (0, 0.1], `max_per_hour` is
+below 1, there are fewer than 3 radio lines, no radio line says STRAIGHT or none says DOCK, a flicker window does not
+fit its cycle, the lights are out 25% of the time or more, or more than 2 flashes start within any one second.
+
+## Endings object
+
+```json
+"endings": {
+  "normal": { "title": "6 AM. YOU MADE IT!", "text": "Payslip in hand, you catch the first bus home." },
+  "secret": { "title": "THE GREAT ESCAPE", "text": "The trucks leave the loading dock at dawn. The drivers are chickens." }
+}
+```
+
+`ShiftState.ending()` picks the key: `secret` when every strange tray that reached the red line was sent straight on
+(and there was at least one), otherwise `normal`. Each needs a non-empty `title` and `text`.
+
 ## Recipes
 
 **Change a starting rule:** edit `routes`.
@@ -105,3 +143,6 @@ and a drawing in `Tray._draw()` (`scripts/tray.gd`). The data test fails until t
 **Make the night shorter for testing:** lower `hour_seconds`.
 
 **Reprice the shop:** edit `price` in `shop`. **Add a PA line:** append to `pa.lines`.
+
+**Make the strange night start earlier:** lower `strange.from_hour` (not below `pa.from_hour`). **More strange trays:**
+raise `strange.chance` and `strange.max_per_hour`. **Calmer lights:** shorten or remove `strange.flicker.dark` windows.

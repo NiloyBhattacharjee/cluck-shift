@@ -7,9 +7,9 @@ Game Off 2026 entry. Theme: **SHIFT**. Engine: Godot 4.7 (GDScript), exported to
 | 1 | One belt, one fork, three tray types, Shift gates, emergency stop, scoring, combo, strikes, game over | Done |
 | 2 | Night clock 10 PM to 6 AM, per-hour speed ramp, supervisor rule changes, stamps, missed trays, pay tally, win at 6 AM | Done |
 | 3 | Break-room shop, PA distractions, juice (shake, particles, popups), synthesized sounds, title screen | **Done** |
-| 4 | Strange trays from 2 AM, flicker, radio glitches, normal and secret endings | Optional |
+| 4 | Strange trays from 2 AM, flicker, radio glitches, normal and secret endings | Done |
 
-Sections 1 to 20 describe what is built and tested. Section 21 is the plan for Phase 4. Every number comes
+Every section describes what is built and tested; section 21 is the strange night (Phase 4). Every number comes
 from [`data/rules.json`](../data/rules.json) or a named constant, and the tests in [`tests/`](../tests) check the
 rules written here (see [testing.md](testing.md)).
 
@@ -413,9 +413,10 @@ stateDiagram-v2
 | HOUR_END | Clear belt, `end_hour()` adds the clean bonus and uses up Coffee and Earplugs, show the tally, whistle | Enter, Space | Nothing | Enter |
 | SHOP | Show the vending machine on **Skip**, with your wallet and active items | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
 | GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
-| WIN | Stop timers, show earned, spent, take-home pay, trays, accuracy, best combo | Enter, Space | Nothing | Enter |
+| WIN | Stop timers, pick the ending (`ShiftState.ending()`), show the dawn scene and the payslip: earned, spent, take-home pay, trays, accuracy, best combo, strange trays let through | Enter, Space | Nothing (the ending animates itself) | Enter |
 
-The factory hum loops only in PLAYING. The title shows only in MENU and the vending machine only in SHOP.
+The factory hum loops only in PLAYING. The title shows only in MENU, the vending machine only in SHOP and the ending
+only in WIN. Leaving PLAYING turns the lights back on, so a flicker never carries into a tally.
 
 Every new night builds a brand-new `ShiftState` in MENU, so nothing from the last night can leak into the next one.
 
@@ -437,7 +438,7 @@ sequenceDiagram
     Note over Main: _physics_process(delta), PLAYING only
     Main->>Logic: tick(delta)
     Logic-->>Main: distance to move (0 while stopped)
-    Main->>Main: pause spawn and hour timers if stopped, hide note after 4 s,<br/>show the PA banner while pa_left > 0, pulse the hazard tint
+    Main->>Main: pause spawn and hour timers if stopped, hide note after 4 s,<br/>show the PA (or radio) banner while pa_left > 0,<br/>dim the line while lights_out(), pulse the hazard tint
     Main->>Tray: advance(distance) for each tray
     Tray-->>Main: true when the path is used up
     Main->>Main: thunk and free trays that reached their bin
@@ -445,8 +446,8 @@ sequenceDiagram
     Note over Fork: physics server checks overlaps
     Fork->>Main: area_entered(tray)
     Main->>Logic: sort(kind, stamp)
-    Logic-->>Main: ok / wrong / missed / covered
-    Main->>Tray: path to bin (or floor if it missed), outline green or red
+    Logic-->>Main: ok / wrong / missed / covered / escaped / caught
+    Main->>Tray: path to bin (or floor if it missed), outline green or red (strange trays: plain)
     Main->>Main: sound, popup, shake or puff; game over if sent home
 ```
 
@@ -470,6 +471,9 @@ so the game has no audio files and no licences to track.
 | `select` | Moving the shop selection; a covered strike | Short 1.2 kHz tick |
 | `pa_jingle` | A PA announcement starts | Ding-dong, 784 then 622 Hz |
 | `hum` (loop) | The whole time you are on the line | 55 Hz and 110 Hz with a little noise |
+| `cluck` | A strange tray escapes (pitched up) or is caught (pitched down); the secret ending | Two quick 950 to 480 Hz sweeps |
+| `radio` | The PA picks up clucking instead of an announcement | Static with clucks every 0.32 s, fading out |
+| `flicker` | The lights cut out | 100 Hz square buzz through noise, 0.16 s |
 
 ## 15. Tuning knobs
 
@@ -490,6 +494,11 @@ so the game has no audio files and no licences to track.
 | `coffee_factor` | rules.json | 0.8 | Coffee multiplies speed and divides interval by this. |
 | `pa.from_hour` / `every` / `seconds` | rules.json | 2 (12 AM) / 9 to 16 s / 3.5 s | When the PA starts, how often, how long. |
 | `pa.lines` | rules.json | 8 lines | What the PA says. |
+| `strange.from_hour` | rules.json | 4 (2 AM) | When the strange night starts. |
+| `strange.chance` / `max_per_hour` | rules.json | 0.06 / 4 | Chance a tray is strange, and the cap per hour. |
+| `strange.radio_chance` / `radio` | rules.json | 0.5 / 5 lines | Share of announcements that are radio clucks, and what they say. |
+| `strange.flicker` | rules.json | every 9 s, dark 0 to 0.2 and 0.45 to 1.2 | When the lights go out in each cycle. |
+| `endings` | rules.json | normal, secret | Title and line for each ending. |
 | `Juice.SHAKE_DECAY` / `SHAKE_PIXELS` | juice.gd | 3 per s / 10 px | Screen shake feel. |
 | `BOTH_SHIFT_WINDOW` | shift_state.gd | 0.15 s | How close two Shifts must be to count as "both". |
 | `COMBO_STEP` / `MAX_MULTIPLIER` | shift_state.gd | 5 / 5 | Combo curve. |
@@ -505,6 +514,8 @@ Field reference: [data-format.md](data-format.md).
 | Shift location not reported | Some setups report Shift with no location (#22). | Fixed: Z and / take over the gates, with a notice on the title and HUD. |
 | Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start`; Enter on the menu needs a click or key on the page anyway. |
 | Random streaks | Uniform random kinds can produce runs. | Fine so far; a shuffled bag per hour if playtests say it feels unfair. |
+| Flicker and photosensitivity | Flashing can trigger seizures. | The lights only dim (to about 30%, never black and white), at most 2 flashes in any second (WCAG 2.3.1 allows 3), once every 9 s. A data test enforces the 2-per-second limit. |
+| Secret too hidden | Players may never find the secret ending. | Three hints: the radio ("STRAIGHT on... the DOCK"), the "TO LOADING DOCK" sign under the straight bin, and the payslip line "Let through to the dock: 3 of 13". |
 
 ---
 
@@ -574,13 +585,126 @@ Keys hint. All drawn with shapes in `scripts/title.gd`. Game over and the win sc
 
 ---
 
-## 21. Next: the strange night (Phase 4, optional proposal)
+## 21. The strange night (Phase 4)
 
-From 2 AM a few trays carry a chicken in sunglasses and a trench coat. No rule covers them, so routing them never
-costs a strike. The lights flicker and the PA picks up clucking that sounds like instructions ("...straight... the
-dock... 6 AM..."); Earplugs mute those hints too. Send every one straight to the loading dock for the secret ending
-(The Great Escape: the trucks leave at dawn, driven by chickens); otherwise the normal ending, a payslip and the bus
-home.
+At 2 AM (`strange.from_hour` = 4) the night gets strange. It stays light and cartoony: nothing is scary, and nothing
+in it can get you sent home.
+
+| From 2 AM | What you see | Rules effect |
+|---|---|---|
+| Strange trays | A chicken in sunglasses and a trench coat, sitting on a tray | No rule covers it: never a strike, never pay, combo untouched |
+| Radio clucks | The PA banner turns green: "RADIO? ...bawk... STRAIGHT on..." | A distraction like the PA, and the main hint about the secret |
+| Flickering lights | The belt and trays dim for a moment, with an electric buzz | Harder to read trays for about 1 s every 9 s |
+| The loading dock | A small "TO LOADING DOCK" sign under the straight-on bin | Where strange trays want to go |
+
+![2 AM: a strange tray on the belt and clucking on the radio](images/strange.png)
+
+### 21.1 Strange trays
+
+**Spawning.** From 2 AM, each new tray is strange with probability `strange.chance` (0.06), until the hour has had
+`strange.max_per_hour` (4). The count resets every hour. Otherwise the tray is picked as before.
+
+```
+next_tray():
+    if hour >= strange.from_hour and hour_strange < strange.max_per_hour and rng.randf() < strange.chance:
+        hour_strange += 1
+        return {kind: "stranger", stamp: ""}
+    otherwise: a kind from the rules, with a stamp some of the time (section 9)
+```
+
+With about 50 trays an hour at 2 AM, that is about 3 strange trays an hour, and roughly 12 to 16 over the four
+strange hours (the tested night sees 13). Trays still on the belt when an hour ends are cleared, so they never count.
+
+**Sorting.** At the red line, `sort("stranger")` is checked before anything else:
+
+```mermaid
+flowchart TD
+    A[strange tray touches the red line] --> B{gate still swinging?}
+    B -->|yes| C[caught: it falls off the line]
+    B -->|no| D{route == straight on?}
+    D -->|yes| E[escaped: escaped += 1<br/>PSST... THANKS. and a high cluck]
+    D -->|no| F[caught: lands in the side bin<br/>BAWK?! and a low cluck]
+    C --> G[strange_seen += 1<br/>no strike, no pay, combo unchanged,<br/>not counted in accuracy, mate not used]
+    E --> G
+    F --> G
+```
+
+| Result | When | Strikes | Pay | Combo | Accuracy | Mate's Help |
+|---|---|---|---|---|---|---|
+| `escaped` | Gate settled on straight on | no change | no change | no change | not counted | not used |
+| `caught` | Gate on left or right, or still swinging | no change | no change | no change | not counted | not used |
+
+Why no strike: the brief says routing them never costs a strike. The cost of a strange tray is attention. You have to
+move the gate for something that pays nothing, in the middle of a fast hour, to keep the secret alive.
+
+### 21.2 Radio clucks
+
+From 2 AM, each PA announcement is a radio cluck with probability `strange.radio_chance` (0.5). The timing is the
+PA's (section 18), so it never overlaps an announcement, and Earplugs mute both.
+
+```mermaid
+flowchart LR
+    T[PA timer fires] --> R{2 AM or later<br/>and rng < radio_chance?}
+    R -->|yes| Y[pa_radio = true<br/>line from strange.radio<br/>green banner, RADIO?, static and clucks]
+    R -->|no| N[pa_radio = false<br/>line from pa.lines<br/>blue banner, PA:, ding-dong]
+```
+
+The radio lines are the hints: "STRAIGHT on", "the DOCK", "sunglasses means STRAIGHT", "the trucks leave at DAWN",
+"no gates for the coats". A data test makes sure at least one line says STRAIGHT and one says DOCK.
+
+### 21.3 Flickering lights
+
+`lights_out()` is a pure function of the game clock. From 2 AM, the lights are out whenever `clock mod flicker.every`
+falls inside one of the `flicker.dark` windows.
+
+| Cycle time (s) | 0 to 0.2 | 0.2 to 0.45 | 0.45 to 1.2 | 1.2 to 9 |
+|---|---|---|---|---|
+| Lights | dark | on | dark | on |
+
+That is about 11% of the time dark, in two flashes. main.gd tints the belt and the trays to `LIGHTS_OUT` (about 30%
+brightness, blue-grey) and plays the `flicker` buzz when they cut out. The HUD, note card and banner stay lit, so the
+rules are always readable. The clock keeps running in an emergency stop, so the lights keep flickering then too.
+
+Photosensitivity: dimming, not black and white; at most 2 flashes in any second; once every 9 s. See section 16.
+
+### 21.4 Endings
+
+At 6 AM the WIN state asks `ShiftState.ending()`:
+
+```mermaid
+flowchart TD
+    W[5 AM tally, Enter] --> Q{strange_seen > 0<br/>and escaped == strange_seen?}
+    Q -->|yes| S[THE GREAT ESCAPE<br/>trucks leave the loading dock at dawn,<br/>driven by chickens in sunglasses]
+    Q -->|no| N[6 AM. YOU MADE IT!<br/>payslip in hand, the first bus home]
+    S --> P[payslip: earned, break room, take-home,<br/>trays, accuracy, best combo,<br/>let through to the dock: e of s]
+    N --> P
+    P -->|Enter| M[title]
+```
+
+| Ending | Condition | Scene |
+|---|---|---|
+| Secret: The Great Escape | At least one strange tray reached the red line, and every one that did was sent straight on | Three delivery trucks drive off at dawn; each driver is a chicken in sunglasses |
+| Normal | Anything else, including a night with no strange trays | The night bus pulls away with you in the window |
+
+Being sent home is not an ending: GAME_OVER happens before 6 AM and shows the usual card. The titles and lines come
+from `endings` in rules.json; the scenes are drawn in `scripts/ending.gd`.
+
+![The Great Escape](images/ending_secret.png)
+
+![The normal ending](images/ending_normal.png)
+
+### 21.5 Edge cases
+
+| Case | What happens |
+|---|---|
+| A strange tray arrives mid-swing with the gate on straight on | Caught (it falls). A swinging gate is never settled. |
+| Mate's Help is standing by and a strange tray is caught | The mate is not used: there is no strike to cover. |
+| A strange tray is on the belt when the hour ends | Cleared with the belt; it never counts as seen. |
+| You buy Earplugs at 2 AM or later | No radio either; the strange trays and the flicker still happen. |
+| No strange tray reaches the line all night | Normal ending: there is nothing to have let through. |
+| Emergency stop during a flicker | The lights keep flickering; the belt stays stopped. |
+
+---
 
 ## 22. Open questions
 

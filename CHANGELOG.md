@@ -5,6 +5,19 @@ All notable changes to Cluck Shift are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Phase 4: the strange night.** From 2 AM a few trays a night carry a chicken in sunglasses and a trench coat. No
+  rule covers them: routing them never costs a strike, pays nothing and leaves the combo alone (#19).
+- From 2 AM half the PA announcements are clucking on the radio, with hints ("STRAIGHT on... the DOCK..."). Earplugs
+  mute them too (#19).
+- From 2 AM the lights flicker: the line dims twice in about a second, every 9 seconds, with an electric buzz. At most
+  2 flashes a second, for photosensitive players (#19).
+- A "TO LOADING DOCK" sign under the straight-on bin.
+- **Two endings** at 6 AM, drawn at dawn with a payslip. Normal: the night bus home. Secret, if every strange tray was
+  sent straight on: The Great Escape, delivery trucks leaving the dock driven by chickens (#20).
+- Tests: 189 rule checks (strange trays, radio, flicker, endings and their data) and 163 play checks (the autoplayer
+  lets every strange tray through and must get the secret ending).
+
 ### Fixed
 - Shift with no left/right location (remote desktop, some browsers) no longer acts as Right Shift. The game switches
   the gates to Z and / and says so on the title and HUD (#22).

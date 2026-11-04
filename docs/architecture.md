@@ -22,10 +22,11 @@ cluck_shift/
 │   ├── juice.gd           # Juice: popups, particle puffs, screen shake (show only, no rules)
 │   ├── title.gd           # the title screen, drawn with shapes
 │   ├── shop_view.gd       # the break-room vending machine, drawn with shapes
+│   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip), drawn with shapes
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
-│   ├── test_logic.gd      # 161 checks on ShiftState, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (137 checks)
+│   ├── test_logic.gd      # 189 checks on ShiftState, Tray.advance and rules.json
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (163 checks)
 └── docs/                  # this folder
 ```
 
@@ -48,13 +49,14 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
     ├── Rules (Label)                     "SUPERVISOR SAYS" board, rebuilt from the current rules each hour
     ├── NoteCard (ColorRect)              yellow sticky note, shown for the first note_seconds of an hour
     │   └── Text (Label)
-    ├── PABanner (ColorRect)              blue PA announcement over the top of the belt
+    ├── PABanner (ColorRect)              PA announcement over the top of the belt (blue; green for radio clucks)
     │   └── Text (Label)
     ├── Hazard (ColorRect)                full-screen red tint, pulses during an emergency stop
     ├── Dim (ColorRect)                   overlay for the hour tally / game over / win
     │   └── Message (Label)
     ├── Shop (Control)        shop_view.gd  the break room, visible only in SHOP
-    └── Title (Control)       title.gd      the title screen, visible only in MENU
+    ├── Title (Control)       title.gd      the title screen, visible only in MENU
+    └── Ending (Control)      ending.gd     the 6 AM ending and payslip, visible only in WIN
 ```
 
 Autoload: `Sfx` (`scripts/sfx.gd`), one `AudioStreamPlayer` per named sound, each stream synthesized at start-up.
@@ -176,8 +178,19 @@ Add an `_add("name", seconds, func(t): return ...)` line in `Sfx._ready()` (a fu
 3. Decide in `_unhandled_input` which keys it accepts.
 4. Add a check to `tests/test_play.gd` that drives into and out of it.
 
-## Phase 4 hooks
+## The strange night (Phase 4)
 
-For the optional strange night: a strange tray is a `stamp`-like marker with no rule, which `ShiftState.sort()` scores
-as neither ok nor strike and counts per exit; the flicker is a `Juice` effect; the radio hints are extra `pa.lines`
-that Earplugs already block; the ending is chosen in `_enter(State.WIN)` from those counts.
+Every rule is in `ShiftState`; main.gd only shows it. Design and diagrams: [design.md section 21](design.md#21-the-strange-night-phase-4).
+
+| Piece | Rule (shift_state.gd) | Shown by (main.gd and friends) |
+|---|---|---|
+| Strange trays | `next_tray()` returns kind `STRANGE` ("stranger"), capped per hour by `hour_strange`; `sort()` returns `escaped` or `caught` and counts `strange_seen` / `escaped` | `tray.gd` draws the coat and sunglasses; `_on_tray_at_fork` pops PSST... THANKS. or BAWK?! with a `cluck` |
+| Radio clucks | `_tick_pa()` sets `pa_radio` and picks from `strange.radio` | `_update_pa()` turns the banner green, prefixes RADIO? and plays `radio` |
+| Flickering lights | `lights_out()`, a pure function of `clock` | `_set_lights()` tints `Belt` and `Trays` to `LIGHTS_OUT` and buzzes; `_enter()` turns them back on outside PLAYING |
+| Endings | `ending()` returns `secret` or `normal` | `_enter(State.WIN)` builds the payslip rows and calls `ending.show_ending()` with `cfg.endings[which]` |
+
+### Add a strange line or retune the flicker
+
+Edit `strange.radio` or `strange.flicker` in rules.json. The data tests check the radio still hints at STRAIGHT and
+DOCK, the flicker windows fit the cycle, the lights are on most of the time and there are never more than 2 flashes
+in a second.

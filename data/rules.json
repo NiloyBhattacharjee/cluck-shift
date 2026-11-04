@@ -30,6 +30,24 @@
       "Today's safety tip: the belt does not stop for snacks."
     ]
   },
+  "strange": {
+    "from_hour": 4,
+    "chance": 0.06,
+    "max_per_hour": 4,
+    "radio_chance": 0.5,
+    "radio": [
+      "...kssh... bawk... STRAIGHT on... bawk bawk... kssh...",
+      "...bzzt... the DOCK... bawk... the trucks... bzzt...",
+      "...bawk... sunglasses means STRAIGHT... bawk... don't tell...",
+      "...kssh... six o'clock... the trucks leave at DAWN... bawk...",
+      "...bzzt... no gates for the coats... bawk bawk..."
+    ],
+    "flicker": { "every": 9, "dark": [[0, 0.2], [0.45, 1.2]] }
+  },
+  "endings": {
+    "normal": { "title": "6 AM. YOU MADE IT!", "text": "Payslip in hand, you catch the first bus home." },
+    "secret": { "title": "THE GREAT ESCAPE", "text": "The trucks leave the loading dock at dawn. The drivers are chickens." }
+  },
   "hours": [
     {
       "speed": [100, 150], "interval": [2.6, 2.0],

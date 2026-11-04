@@ -1,7 +1,8 @@
 class_name ShiftState
 extends RefCounted
 ## Every rule of one night, with no nodes: the hours and their supervisor notes, gates,
-## gate swing, emergency stop, pay, combo, strikes, the belt ramp, the shop and the PA. main.gd shows it
+## gate swing, emergency stop, pay, combo, strikes, the belt ramp, the shop, the PA and the strange
+## night (trays in disguise, radio clucks, flickering lights, the ending). main.gd shows it
 ## on screen; tests/test_logic.gd drives it directly. A new night is a new ShiftState,
 ## so there is no reset code to forget a field in.
 
@@ -9,6 +10,7 @@ const BOTH_SHIFT_WINDOW := 0.15  # seconds: second Shift this soon after the oth
 const COMBO_STEP := 5  # every 5 correct in a row adds x1 to the pay multiplier
 const MAX_MULTIPLIER := 5
 const EXITS := ["left", "center", "right"]
+const STRANGE := "stranger"  # a chicken in sunglasses and a trench coat; no rule covers it
 
 var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
@@ -47,6 +49,11 @@ var pa_left := 0.0  # seconds the current PA announcement still shows
 var pa_line := ""  # what it says
 var pa_count := 0  # announcements so far (main.gd plays the jingle when this goes up)
 var _pa_next := INF  # seconds until the next announcement
+var pa_radio := false  # the current announcement is clucking on the radio, not the PA
+
+var strange_seen := 0  # strange trays that reached the red line, all night
+var escaped := 0  # of those, sent straight on to the loading dock
+var hour_strange := 0  # strange trays spawned this hour (at most strange.max_per_hour)
 
 var _route_before := "center"  # route before the latest toggle, restored by an emergency stop
 var _last_press := {"left": -INF, "right": -INF}
@@ -70,6 +77,7 @@ func start_hour() -> void:
 	hour_sorted = 0
 	hour_ok = 0
 	hour_pay = 0
+	hour_strange = 0
 	route = "center"
 	swing_left = 0.0
 	note = cfg.hours[hour].get("note", {})
@@ -198,7 +206,9 @@ func _tick_pa(delta: float) -> void:
 	_pa_next -= delta
 	if _pa_next <= 0.0:
 		pa_left = cfg.pa.seconds
-		pa_line = cfg.pa.lines[rng.randi() % cfg.pa.lines.size()]
+		pa_radio = is_strange_hour() and rng.randf() < cfg.strange.radio_chance
+		var lines: Array = cfg.strange.radio if pa_radio else cfg.pa.lines
+		pa_line = lines[rng.randi() % lines.size()]
 		pa_count += 1
 		_pa_next = rng.randf_range(cfg.pa.every[0], cfg.pa.every[1])
 
@@ -211,8 +221,35 @@ func is_swinging() -> bool:
 	return swing_left > 0.0
 
 
-## Picks the next tray: a kind from the current rules, and a stamp some of the time.
+## From strange.from_hour (2 AM) the night gets strange: disguised trays, radio clucks, flickering lights.
+func is_strange_hour() -> bool:
+	return hour >= int(cfg.strange.from_hour)
+
+
+## The lights are out during the strange.flicker.dark windows of every strange.flicker.every seconds.
+## Runs on the game clock, so it keeps flickering through an emergency stop.
+func lights_out() -> bool:
+	if not is_strange_hour():
+		return false
+	var t := fmod(clock, cfg.strange.flicker.every)
+	for w: Array in cfg.strange.flicker.dark:
+		if t >= w[0] and t < w[1]:
+			return true
+	return false
+
+
+## How the night ends at 6 AM: "secret" if strange trays came by and every one was sent straight on
+## to the loading dock (The Great Escape), otherwise "normal" (the payslip and the bus home).
+func ending() -> String:
+	return "secret" if strange_seen > 0 and escaped == strange_seen else "normal"
+
+
+## Picks the next tray: sometimes a strange one (from 2 AM, a few an hour), otherwise a kind from
+## the current rules, with a stamp some of the time.
 func next_tray() -> Dictionary:
+	if is_strange_hour() and hour_strange < int(cfg.strange.max_per_hour) and rng.randf() < cfg.strange.chance:
+		hour_strange += 1
+		return {"kind": STRANGE, "stamp": ""}
 	var kinds := routes.keys()
 	var stamp := ""
 	if not stamps.is_empty() and rng.randf() < cfg.stamp_chance:
@@ -252,9 +289,17 @@ func press_shift(side: String) -> String:
 ## A tray reached the red line. Returns "ok", "wrong", "missed" (the gate was still swinging, so the
 ## tray falls off the line) or "covered" (wrong or missed, but your mate took the strike).
 ## Wrong and missed are strikes. last_missed says whether the tray fell, whatever the result.
+## A strange tray is "escaped" (sent straight on, to the loading dock) or "caught" (anywhere else, or it
+## fell): never a strike, never pay, the combo is untouched and it doesn't count towards accuracy.
 func sort(kind: String, stamp := "") -> String:
 	var missed := is_swinging()
 	last_missed = missed
+	if kind == STRANGE:
+		strange_seen += 1
+		if not missed and route == "center":
+			escaped += 1
+			return "escaped"
+		return "caught"
 	sorted_total += 1
 	hour_sorted += 1
 	if not missed and exit_for(kind, stamp) == route:
