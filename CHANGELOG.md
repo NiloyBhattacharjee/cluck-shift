@@ -6,6 +6,16 @@ All notable changes to Cluck Shift are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Phase 5: polish around the same loop.** Esc or P pauses mid-shift: the belt, clock, PA, flicker and timers all
+  stop, and Q quits to the title. Losing window focus pauses too (#31).
+- M mutes all sound on the title or the pause card, remembered between sessions (#31).
+- A record book in `user://records.cfg`: nights played and survived, best take-home pay, best combo, best accuracy and
+  whether the secret ending has been found. The title shows the best night; the payslip and the sent-home card say
+  NEW BEST (#32).
+- The 6 AM ending draws the night's ledger beside the payslip: pay per hour as bars, a red X per strike (#33).
+- Music: a synthesized bass, kick and hi-hat loop on the line that gets 3% faster every hour (#34).
+- A Windows Desktop export preset: one self-contained `Cluck Shift.exe` for itch.io (#35).
+- Tests: 201 rule checks (ledger and records) and 188 play checks (mute, pause, music, ledger, records on disk).
 - **Phase 4: the strange night.** From 2 AM a few trays a night carry a chicken in sunglasses and a trench coat. No
   rule covers them: routing them never costs a strike, pays nothing and leaves the combo alone (#19).
 - From 2 AM half the PA announcements are clucking on the radio, with hints ("STRAIGHT on... the DOCK..."). Earplugs

@@ -36,6 +36,7 @@ var strikes := 0  # this hour only
 var hour_sorted := 0
 var hour_ok := 0
 var hour_pay := 0
+var ledger: Array = []  # every finished hour's tally, in order (the 6 AM chart, #33)
 var estops_left := 0  # for the whole night
 var stop_left := 0.0  # seconds of emergency stop still to run
 var swing_left := 0.0  # seconds until the gate finishes moving
@@ -115,14 +116,17 @@ func apply_note(n: Dictionary) -> Array:
 	return []
 
 
-## Ends the hour. Adds the clean-hour bonus, uses up this hour's items, and returns the tally.
+## Ends the hour. Adds the clean-hour bonus, uses up this hour's items, and returns the tally
+## (also kept in `ledger`).
 func end_hour() -> Dictionary:
 	var bonus := int(cfg.clean_hour_bonus) if strikes == 0 and hour_sorted > 0 else 0
 	pay += bonus
 	coffee = false
 	earplugs = false
-	return {"from": hour_name(hour), "to": hour_name(hour + 1), "sorted": hour_sorted, "ok": hour_ok,
+	var tally := {"from": hour_name(hour), "to": hour_name(hour + 1), "sorted": hour_sorted, "ok": hour_ok,
 		"strikes": strikes, "pay": hour_pay, "bonus": bonus, "total": pay}
+	ledger.append(tally)
+	return tally
 
 
 # --- shop ------------------------------------------------------------------

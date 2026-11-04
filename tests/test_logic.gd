@@ -1,5 +1,5 @@
 extends SceneTree
-## Sanity tests for the rules (ShiftState), the tray path and data/rules.json.
+## Sanity tests for the rules (ShiftState), the record book (Records), the tray path and data/rules.json.
 ## Run: godot --headless -s tests/test_logic.gd     (exit code 0 = all passed)
 
 var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
@@ -23,6 +23,8 @@ func _initialize() -> void:
 	test_strange_trays()
 	test_radio_and_flicker()
 	test_endings()
+	test_ledger()
+	test_records()
 	test_tray_path()
 	test_rules_data()
 	print("\n%s: %d failure(s)" % ["PASS" if failures == 0 else "FAIL", failures])
@@ -399,6 +401,50 @@ func test_endings() -> void:
 	s.tick(cfg.swing_seconds + 0.01)
 	s.sort(ShiftState.STRANGE)
 	check(s.ending() == "normal", "one strange tray caught: back to the normal ending")
+
+
+func test_ledger() -> void:
+	var s := night()
+	check(s.ledger.is_empty(), "the ledger starts empty")
+	s.sort("wing", "")  # route is center: a strike
+	s.end_hour()
+	s.start_hour()
+	s.press_shift("left")
+	s.tick(cfg.swing_seconds + 0.01)
+	s.sort("wing", "")
+	var t := s.end_hour()
+	check(s.ledger.size() == 2 and s.ledger[1] == t, "every finished hour's tally goes in the ledger, in order")
+	check(s.ledger[0].strikes == 1 and s.ledger[0].bonus == 0 and s.ledger[0].from == "10 PM", "10 PM: one strike, no bonus")
+	check(s.ledger[1].pay == int(cfg.pay_per_tray) and s.ledger[1].bonus == int(cfg.clean_hour_bonus), "11 PM: one tray paid and a clean-hour bonus")
+
+
+func test_records() -> void:
+	var rec := Records.BLANK.duplicate()
+	var s := strange_night()
+	s.sort(ShiftState.STRANGE)  # let through: the secret ending
+	s.pay = 900
+	s.spent = 150
+	s.best_combo = 12
+	s.sorted_total = 10
+	s.sorted_ok = 9
+	var beaten := Records.merge(rec, s, true)
+	check(beaten == ["best_combo", "best_pay", "best_accuracy", "secret"], "first night to 6 AM beats every record (%s)" % [beaten])
+	check(rec.nights == 1 and rec.survived == 1 and rec.best_pay == 750 and rec.best_combo == 12 and rec.secret, "best take-home is pay minus spending ($%d)" % rec.best_pay)
+	check(is_equal_approx(rec.best_accuracy, 0.9), "best accuracy kept as a fraction")
+	beaten = Records.merge(rec, s, true)
+	check(beaten.is_empty() and rec.nights == 2, "the same night again beats nothing, but counts as a night")
+	var short := night()
+	short.best_combo = 20
+	short.pay = 5000
+	beaten = Records.merge(rec, short, false)
+	check(beaten == ["best_combo"] and rec.best_pay == 750 and rec.survived == 2 and rec.nights == 3, "sent home: only the combo can count, not the pay")
+	check(Records.describe(["best_pay", "secret"]) == "take-home pay, secret ending found" and Records.describe([]) == "", "NEW BEST line wording")
+	var path := "user://test_records.cfg"
+	rec.muted = true
+	Records.save_file(rec, path)
+	check(Records.load_file(path) == rec, "records and the mute setting survive a save and load")
+	DirAccess.remove_absolute(path)
+	check(Records.load_file(path) == Records.BLANK, "no file yet: blank records, sound on")
 
 
 ## Ticks a whole hour in 0.1 s steps (PA timing included).
