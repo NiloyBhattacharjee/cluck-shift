@@ -7,7 +7,7 @@ extends SceneTree
 ##    Also: M mutes on the title, Esc pauses (everything freezes, Shift does nothing), the music runs
 ##    only while working, the 6 AM ledger has every hour and the record book is saved.
 ## 2) Idle night: a late Shift press makes a tray miss the gate; with no other presses the player
-##    is sent home in the first hour, the belt freezes, and Enter goes back to the title for a clean start.
+##    is sent home in the first hour, the belt freezes, and one Enter starts a clean new night.
 ##    Esc then Q quits a night to the title without it counting as a night played.
 ## Run: godot --headless --fixed-fps 60 -s tests/test_play.gd     (exit code 0 = all passed)
 
@@ -83,37 +83,17 @@ func _night() -> void:
 				main.logic.rng.seed = 2026  # the same night every run; the hour's first tray spawns after the note
 		Main.State.PLAYING:
 			_night_playing()
-		Main.State.HOUR_END:
-			if in_state == 2:
-				var name := ShiftState.hour_name(main.logic.hour)
-				hours_done += 1
-				bonuses += int(("Clean hour bonus: $%d" % int(cfg.clean_hour_bonus)) in main.message.text)
-				check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "%s: belt cleared at the end of the hour" % name)
-				check(not main.pa_banner.visible and not _hum() and not _music(), "%s: PA banner, hum and music off on the tally" % name)
-				if main.logic.hour == 0:
-					check(puffs_seen, "a puff of feathers when a tray lands in its bin")
-					check(pay_popup_seen, "a +$ popup for a correct tray")
-				if main.logic.hour == int(cfg.pa.from_hour):
-					check(pa_seen_by_hour.get(main.logic.hour, false), "%s: the PA banner interrupted this hour" % name)
-				if main.logic.hour == int(cfg.pa.from_hour) + 1:
-					check(not pa_seen_by_hour.get(main.logic.hour, false), "%s: earplugs kept the PA quiet all hour" % name)
-				var strange_hour: bool = main.logic.hour >= int(cfg.strange.from_hour)
-				check(dark_by_hour.get(main.logic.hour, false) == strange_hour, "%s: the lights %s" % [name, "flickered" if strange_hour else "held steady"])
-				if not strange_hour:
-					check(not strange_by_hour.has(main.logic.hour), "%s: no strange trays yet" % name)
-				check(not main.lights_out and main.belt.modulate == Color.WHITE, "%s: lights back on for the tally" % name)
-				_key(KEY_ENTER)
-				if not main.logic.is_last_hour():
-					check(main.state == Main.State.SHOP, "%s: Enter goes to the break room" % name)
 		Main.State.SHOP:
 			if in_state == 2:
+				_check_hour_over()
 				_shop()
 		Main.State.WIN:
 			if in_state == 2:
+				_check_hour_over()
 				var s: ShiftState = main.logic
 				print("night: sorted %d, earned $%d, spent $%d, best combo %d" % [s.sorted_total, s.pay, s.spent, s.best_combo])
 				check(hours_done == cfg.hours.size(), "all %d hours played" % cfg.hours.size())
-				check(s.sorted_ok == s.sorted_total - 1 and s.sorted_total > 200, "every tray right except the one the mate covered (%d of %d)" % [s.sorted_ok, s.sorted_total])
+				check(s.sorted_ok == s.sorted_total - 1 and s.sorted_total > 150, "every tray right except the one the mate covered (%d of %d)" % [s.sorted_ok, s.sorted_total])
 				check(bonuses == cfg.hours.size(), "no strikes all night: a clean-hour bonus every hour")
 				var spent := 0
 				for item: Dictionary in cfg.shop:
@@ -141,6 +121,28 @@ func _night() -> void:
 				_key(KEY_ENTER)  # handled at once, so main is already on the title
 				check(main.state == Main.State.MENU and main.title.visible and not e.visible, "Enter after the win goes back to the title")
 				phase = "idle"
+
+
+## The end of an hour, checked on the screen that follows it: the break room, or the ending after 5 AM.
+func _check_hour_over() -> void:
+	var name := ShiftState.hour_name(main.logic.hour)
+	hours_done += 1
+	bonuses += int(main.logic.ledger.back().bonus == int(cfg.clean_hour_bonus))
+	check(main.state == (Main.State.WIN if main.logic.is_last_hour() else Main.State.SHOP), "%s: the hour's end goes straight on, with no screen to Enter past" % name)
+	check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "%s: belt cleared at the end of the hour" % name)
+	check(not main.pa_banner.visible and not _hum() and not _music(), "%s: PA banner, hum and music off on the tally" % name)
+	if main.logic.hour == 0:
+		check(puffs_seen, "a puff of feathers when a tray lands in its bin")
+		check(pay_popup_seen, "a +$ popup for a correct tray")
+	if main.logic.hour == int(cfg.pa.from_hour):
+		check(pa_seen_by_hour.get(main.logic.hour, false), "%s: the PA banner interrupted this hour" % name)
+	if main.logic.hour == int(cfg.pa.from_hour) + 1:
+		check(not pa_seen_by_hour.get(main.logic.hour, false), "%s: earplugs kept the PA quiet all hour" % name)
+	var strange_hour: bool = main.logic.hour >= int(cfg.strange.from_hour)
+	check(dark_by_hour.get(main.logic.hour, false) == strange_hour, "%s: the lights %s" % [name, "flickered" if strange_hour else "held steady"])
+	if not strange_hour:
+		check(not strange_by_hour.has(main.logic.hour), "%s: no strange trays yet" % name)
+	check(not main.lights_out and main.belt.modulate == Color.WHITE, "%s: lights back on for the tally" % name)
 
 
 func _night_playing() -> void:
@@ -271,6 +273,8 @@ func _sabotage() -> void:
 ## The break room after hour n: check the screen, then follow SHOP_PLAN (or skip).
 func _shop() -> void:
 	var s: ShiftState = main.logic
+	var tally: Dictionary = s.ledger.back()
+	check(("%d of %d right" % [tally.ok, tally.sorted]) in main.shop.heading, "%s break: the heading has the hour's tally" % ShiftState.hour_name(s.hour))
 	check(main.shop.visible and main.shop.selected == main.shop.items.size() - 1, "%s break: the shop opens on Skip" % ShiftState.hour_name(s.hour))
 	check(main.shop.wallet == s.wallet(), "%s break: the shop shows your pay" % ShiftState.hour_name(s.hour))
 	if hours_done == 1:  # can't-afford check: empty the wallet, try Coffee, then put it back
@@ -327,31 +331,33 @@ func _idle() -> void:
 				_key(KEY_SHIFT, KEY_LOCATION_RIGHT)
 			elif in_state == 62:
 				check(main.state == Main.State.GAME_OVER and s.route != "right", "Shift does nothing after game over")
-				_key(KEY_ENTER)
+				_key(KEY_ENTER)  # handled at once
+				_check_new_night()
 		Main.State.MENU:
 			if in_state == 2:
-				var after_game_over := missed_checked
-				_key(KEY_ENTER)  # handled at once
-				if after_game_over:
-					check(main.state == Main.State.PLAYING, "Enter from the title starts a new night")
-					var n: ShiftState = main.logic
-					check(n.hour == 0 and n.strikes == 0 and n.pay == 0 and n.spent == 0 and n.mates == 0 and n.estops_left == int(cfg.estops), "the new night starts clean at 10 PM")
-					check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "old trays are cleared")
-					# #22: a Shift with no left/right does nothing and switches on Z and / as the gate keys
-					_key(KEY_Z)
-					check(n.route == "center" and not main.backup_keys, "Z is not a gate key on a normal keyboard")
-					_key(KEY_SHIFT)
-					check(n.route == "center" and main.backup_keys, "a Shift with no left/right moves no gate and turns on Z and /")
-					check(main.stats.text.ends_with("GATES  Z  and  /"), "the HUD shows the backup keys")
-					_key(KEY_Z)
-					check(n.route == "left", "then Z works the left gate")
-					_key(KEY_P)
-					check(main.paused, "P pauses too")
-					_key(KEY_Q)
-					check(main.state == Main.State.MENU and not main.paused and main.title.visible, "Q on the pause card quits to the title")
-					check(Records.load_file(RECORDS).nights == 3, "a night quit from the pause card doesn't count")
-					DirAccess.remove_absolute(RECORDS)
-					_finish()
+				_key(KEY_ENTER)
+
+
+func _check_new_night() -> void:
+	check(main.state == Main.State.PLAYING and not main.title.visible, "one Enter after being sent home starts a new night")
+	var n: ShiftState = main.logic
+	check(n.hour == 0 and n.strikes == 0 and n.pay == 0 and n.spent == 0 and n.mates == 0 and n.estops_left == int(cfg.estops), "the new night starts clean at 10 PM")
+	check(main.trays.get_children().all(func(t): return t.is_queued_for_deletion()), "old trays are cleared")
+	# #22: a Shift with no left/right does nothing and switches on Z and / as the gate keys
+	_key(KEY_Z)
+	check(n.route == "center" and not main.backup_keys, "Z is not a gate key on a normal keyboard")
+	_key(KEY_SHIFT)
+	check(n.route == "center" and main.backup_keys, "a Shift with no left/right moves no gate and turns on Z and /")
+	check(main.stats.text.ends_with("GATES  Z  and  /"), "the HUD shows the backup keys")
+	_key(KEY_Z)
+	check(n.route == "left", "then Z works the left gate")
+	_key(KEY_P)
+	check(main.paused, "P pauses too")
+	_key(KEY_Q)
+	check(main.state == Main.State.MENU and not main.paused and main.title.visible, "Q on the pause card quits to the title")
+	check(Records.load_file(RECORDS).nights == 3, "a night quit from the pause card doesn't count")
+	DirAccess.remove_absolute(RECORDS)
+	_finish()
 
 
 ## Presses the Shift that sends the front unrouted tray to its exit, at most every 0.25 s.

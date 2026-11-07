@@ -56,9 +56,10 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 
 `tests/test_logic.gd` fails if:
 
-- there are not 8 hours, or `hour_seconds` is less than `note_seconds + 30`,
+- there are not 8 hours, or `hour_seconds` is less than `note_seconds + 20`,
 - an hour's belt gets slower, or `speed x interval` is 100 px or less at either end (trays could overlap),
 - an hour's last interval is below 0.6 s,
+- an hour's top speed leaves under 0.4 s to react to a tray coming out from under the PA banner,
 - a note has no `text`, or (after the first hour) does not change exactly one rule,
 - a route or stamp names an exit other than `left`, `center` or `right`, or a swap names the same exit twice,
 - any kind (starting or added by a note) has no drawing in `Tray.FOOD`, or any stamp none in `Tray.STAMPS`,
@@ -83,7 +84,7 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 ## PA object
 
 ```json
-"pa": { "from_hour": 2, "every": [9, 16], "seconds": 3.5, "lines": ["Please stop high-fiving the drumsticks.", "..."] }
+"pa": { "from_hour": 2, "every": [6, 11], "seconds": 2.5, "lines": ["Please stop high-fiving the drumsticks.", "..."] }
 ```
 
 | Field | Meaning |
@@ -97,7 +98,7 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 
 ```json
 "strange": {
-  "from_hour": 4, "chance": 0.06, "max_per_hour": 4,
+  "from_hour": 4, "chance": 0.1, "max_per_hour": 4,
   "radio_chance": 0.5, "radio": ["...kssh... bawk... STRAIGHT on... bawk bawk... kssh...", "..."],
   "flicker": { "every": 9, "dark": [[0, 0.2], [0.45, 1.2]] }
 }

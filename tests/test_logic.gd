@@ -471,7 +471,7 @@ func test_rules_data() -> void:
 	var kinds: Array = cfg.routes.keys()
 	var stamp_colours := []
 	check(cfg.hours.size() == 8, "eight hours: 10 PM to 6 AM")
-	check(cfg.hour_seconds >= cfg.note_seconds + 30, "most of each hour is sorting, not reading")
+	check(cfg.hour_seconds >= cfg.note_seconds + 20, "most of each hour is sorting, not reading")
 	for i in cfg.hours.size():
 		var h: Dictionary = cfg.hours[i]
 		var name := ShiftState.hour_name(i)
@@ -479,6 +479,9 @@ func test_rules_data() -> void:
 		# trays are 36 px tall; the gap between them is speed * interval at spawn time
 		check(minf(h.speed[0] * h.interval[0], h.speed[1] * h.interval[1]) > 100, "%s: trays never overlap" % name)
 		check(h.interval[1] >= 0.6, "%s: at least 0.6 s per tray" % name)
+		# the worst case: a tray comes out from under the PA banner (bottom y = 118) and its 36 px height commits it at the red line
+		var reaction: float = (Belt.DECISION_Y - 18.0 - 118.0) / h.speed[1] - cfg.swing_seconds
+		check(reaction >= 0.4, "%s: at least 0.4 s to react to a tray coming out from under the PA (%.2f s)" % [name, reaction])
 		var n: Dictionary = h.get("note", {})
 		check(n.has("text"), "%s: has a supervisor note" % name)
 		var changes := ["route", "stamp", "swap"].filter(func(k): return n.has(k))

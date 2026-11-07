@@ -3,7 +3,7 @@ extends Node2D
 ## the pause menu and the record book.
 ## The rules themselves live in ShiftState (scripts/shift_state.gd).
 
-enum State { MENU, PLAYING, HOUR_END, SHOP, GAME_OVER, WIN }
+enum State { MENU, PLAYING, SHOP, GAME_OVER, WIN }
 
 const TRAY := preload("res://scenes/tray.tscn")
 const ROUTE_NAMES := {"left": "LEFT", "center": "STRAIGHT", "right": "RIGHT"}
@@ -80,20 +80,13 @@ func _enter(new_state: State) -> void:
 			_clear_trays()
 		State.PLAYING:
 			_start_hour()
-		State.HOUR_END:
-			_clear_trays()
-			var t := logic.end_hour()
-			Sfx.play("hour_end")
-			_show("%s - %s DONE\n\nTrays sorted: %d\nCorrect: %d\nStrikes: %d\nPay this hour: $%d\nClean hour bonus: $%d\n\nNight total: $%d\n\nPress Enter to %s"
-				% [t.from, t.to, t.sorted, t.ok, t.strikes, t.pay, t.bonus, t.total,
-				"clock off" if logic.is_last_hour() else "go to the break room"])
 		State.SHOP:
 			shop.selected = shop.items.size() - 1  # start on Skip, so Enter alone never spends
 			_refresh_shop()
 		State.GAME_OVER:
 			juice.shake(1.0)
 			var beaten := _record_night(false)
-			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter"
+			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter to clock in again"
 				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo,
 				"NEW BEST: %s\n" % beaten if beaten != "" else ""])
 		State.WIN:
@@ -169,9 +162,13 @@ func _notification(what: int) -> void:
 		_set_paused(true)
 
 
+## The hour's tally goes on the break-room heading (and the 6 AM ledger), so there is no screen to Enter past.
 func _on_hour_over() -> void:
 	if state == State.PLAYING:
-		_enter(State.HOUR_END)
+		_clear_trays()
+		logic.end_hour()
+		Sfx.play("hour_end")
+		_enter(State.WIN if logic.is_last_hour() else State.SHOP)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -201,11 +198,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		match state:
 			State.MENU:
 				_enter(State.PLAYING)
-			State.HOUR_END:
-				_enter(State.WIN if logic.is_last_hour() else State.SHOP)
 			State.SHOP:
 				_checkout()
-			State.GAME_OVER, State.WIN:
+			State.GAME_OVER:  # one key to try again
+				_enter(State.MENU)
+				_enter(State.PLAYING)
+			State.WIN:
 				_enter(State.MENU)
 
 
@@ -364,7 +362,8 @@ func _show(text: String) -> void:
 
 func _refresh_shop() -> void:
 	shop.wallet = logic.wallet()
-	shop.heading = "%s - %s break. One item, or skip." % [ShiftState.hour_name(logic.hour), ShiftState.hour_name(logic.hour + 1)]
+	var t: Dictionary = logic.ledger.back()
+	shop.heading = "%s - %s done: %d of %d right, %d strikes, $%d pay + $%d clean bonus" % [t.from, t.to, t.ok, t.sorted, t.strikes, t.pay, t.bonus]
 	shop.owned = "Mate's Help x%d" % logic.mates if logic.mates > 0 else ""
 	shop.queue_redraw()
 
