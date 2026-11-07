@@ -15,6 +15,7 @@ const HAT := Color("ffca28")
 const INK := Color("eceff1")
 
 var done := false  # all three reels have landed
+var touch := false  # tap wording (#44)
 var wallet := 0
 var _result := {}  # from ShiftState.spin(): reels, payout
 var _strips := [[], [], []]
@@ -57,6 +58,10 @@ func stop_next() -> void:
 	while _strips[i][t % _strips[i].size()] != _result.reels[i]:
 		t += 1
 	_target[i] = t
+
+
+func since_done() -> float:
+	return _since_done
 
 
 func _process(delta: float) -> void:
@@ -113,7 +118,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(0, 70) + shake, "CHICKEN SLOTS", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, HAT)
 	draw_string(font, Vector2(0, 112), "Your pay: $%d" % wallet, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, INK)
 	if not done:
-		draw_string(font, Vector2(0, 360), "LEFT or RIGHT SHIFT  stop the next reel", HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, INK)
+		draw_string(font, Vector2(0, 360), "TAP  stop the next reel" if touch else "LEFT or RIGHT SHIFT  stop the next reel", HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, INK)
 		return
 	var colour := HAT if payout > 0 else Color("90a4ae")
 	var line := _result_line(payout, three, jackpot)
@@ -121,8 +126,9 @@ func _draw() -> void:
 	draw_string_outline(font, Vector2(0, 375) + shake, line, HORIZONTAL_ALIGNMENT_CENTER, size.x, big, 8, Color.BLACK)
 	draw_string(font, Vector2(0, 375) + shake, line, HORIZONTAL_ALIGNMENT_CENTER, size.x, big, colour)
 	if fmod(_since_done, 1.0) < 0.7:
-		draw_string_outline(font, Vector2(0, 450), "ENTER  back to the line", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 6, Color.BLACK)
-		draw_string(font, Vector2(0, 450), "ENTER  back to the line", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, INK)
+		var go := "TAP  back to the line" if touch else "ENTER  back to the line"
+		draw_string_outline(font, Vector2(0, 450), go, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 6, Color.BLACK)
+		draw_string(font, Vector2(0, 450), go, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, INK)
 
 
 func _draw_reel(i: int, at: Vector2) -> void:

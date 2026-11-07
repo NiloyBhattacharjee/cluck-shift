@@ -44,7 +44,7 @@ Drives `ShiftState` directly. No scene, no timing.
 | Tray path | `Tray.advance` follows a leg, carries leftover distance round a corner, stops at the end; a missed tray tumbles. |
 | Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray even at the shortest gap and at least 0.4 s to react to a tray coming out from under the PA; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the five known items with names, text and prices; `no_repeat_from` and `interval_jitter` are sensible; every slot symbol has art, a payout and a weight that fits the strip; the slots pay back 80% to 100% and a pair gives back less than a spin costs; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. The strange night starts after the PA; strange trays are rare but at least one an hour; radio lines mix with the PA and hint at STRAIGHT and DOCK; flicker windows fit the cycle, keep the lights on most of the time and never start more than 2 flashes in a second (photosensitivity); strange trays have art and no rule; both endings have a title and text. |
 
-## tests/test_play.gd: the real game (209 checks)
+## tests/test_play.gd: the real game (235 checks)
 
 It reads and writes `user://test_play_records.cfg`, never the player's own record book, and deletes it at the end.
 
@@ -108,6 +108,16 @@ red line. Checks:
 
 A frame limit fails the run instead of hanging if something stops progressing.
 
+A third run plays on a touchscreen, with taps instead of keys:
+
+- keyboard wording until the first tap, and a tap right after a screen opens does nothing else,
+- a tap on the title clocks in; each half of the screen works its gate; two fingers make an emergency stop,
+- the pause button moves no gate and opens the menu; paused, a tap moves no gate; a key switches to keyboard wording and a tap back again;
+  the Sound button mutes and unmutes; Back to work resumes,
+- in the break room a tap right after it opens or off the cards does nothing, one tap chooses and a second buys,
+- on the slots taps stop the reels, a tap as they land can't skip the result, and one after that goes back to the line,
+- the sent-home card says Tap, a tap right away can't skip it, and one after that starts a new night.
+
 ## Checking the tests catch bugs
 
 Each rule was broken on purpose to make sure a suite notices:
@@ -153,6 +163,8 @@ Automated tests cannot judge feel. Before a release, play once and confirm:
 - [ ] Combo and multiplier rise; pay jumps by $20 on the 5th in a row; the combo survives into the next hour.
 - [ ] Both Shifts: STOPPED!, the belt and the clock freeze for about 2.5 s, E-STOPS goes down by one.
 - [ ] At 11:00 PM the break room opens on Skip, with the hour's tally and the bonus if clean on its heading.
+- [ ] On a real phone, held sideways (Android and iPhone): the title says TAP; each half of the screen works its gate; two fingers
+  stop the belt; the II button pauses; the sound starts after the first tap; text is readable; held upright it asks to turn sideways.
 - [ ] From 12 AM no two trays in a row go to the same bin, and the gaps between trays feel uneven.
 - [ ] Double or Nothing: the HUD shows BET $300; the next break room says YOU WON or YOU LOST.
 - [ ] Chicken Slots: three Shift presses stop the reels, the last one drags on, ticks slow down and the result pays out.

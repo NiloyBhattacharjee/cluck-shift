@@ -28,7 +28,7 @@ cluck_shift/
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
 │   ├── test_logic.gd      # 299 checks on ShiftState, Records, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (209 checks)
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events and taps (235 checks)
 └── docs/                  # this folder
 ```
 
@@ -58,6 +58,9 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
     │   └── Message (Label)
     ├── Shop (Control)        shop_view.gd  the break room, visible only in SHOP
     ├── Slots (Control)       slots_view.gd Chicken Slots, visible only in SLOTS
+    ├── PauseButton (Button)                the II button, on the line in touch mode
+    ├── PauseMenu (VBoxContainer)           Back, Sound and Quit buttons, paused in touch mode
+    ├── RotateCard (ColorRect)              "Turn your phone sideways", a phone held upright in touch mode
     ├── Title (Control)       title.gd      the title screen, visible only in MENU
     └── Ending (Control)      ending.gd     the 6 AM ending and payslip, visible only in WIN
 ```
@@ -132,6 +135,8 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
 - In PLAYING, Esc or P toggles `paused` (#31). While paused, M toggles mute, Q quits to MENU, and Shift is ignored.
 - In MENU, M toggles mute.
 - In SHOP, Left / Right Shift move `shop.selected` (wrapping).
+- Taps are read in `_input`, ahead of the GUI, and `_on_tap()` maps them to the same actions as keys. `_set_touch()` follows
+  the last input used and sets each view's `touch` (design section 23.9).
 - Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING, SLOTS to PLAYING once the reels land,
   SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER to a new night in PLAYING, WIN to MENU.
   Everything else is ignored.

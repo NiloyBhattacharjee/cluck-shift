@@ -27,8 +27,8 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 ## Play it
 
 - **In your browser (easiest):** open the [itch.io page](https://niloybhattacharjee.itch.io/cluck-shift), press **Run game**, then click the game once so it
-  gets your keyboard. Nothing to download or install. You need a desktop browser (Chrome, Firefox or Edge) and a
-  physical keyboard.
+  gets your keyboard. Nothing to download or install. On a computer you need Chrome, Firefox or Edge and a physical
+  keyboard. On a phone or tablet, hold it sideways and tap.
 - **Download and run it yourself:** on GitHub press **Code > Download ZIP** (or `git clone` this repo), unzip it,
   then follow [Run it](#run-it) below. You need the free Godot 4.7 editor.
 - **Windows download:** get the .exe from the [latest GitHub release](https://github.com/NiloyBhattacharjee/cluck-shift/releases/latest) and double-click it. No install. Windows
@@ -43,6 +43,7 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 | **Both Shifts together** | Emergency stop: the belt and the clock halt for 2.5 s (3 per night) |
 | Left / Right Shift in the break room | Choose an item |
 | Enter / Space | Menus; buy in the break room |
+| **On a touchscreen** | Tap the left or right half for each gate, both sides for the emergency stop, and the II button to pause |
 | Esc or P | Pause (and resume) mid-shift; Q on the pause card quits to the title |
 | M | Sound on / off, on the title or the pause card (remembered) |
 
@@ -81,7 +82,7 @@ From a terminal: `godot --path .`
 ```bash
 godot --headless --path . --import                                # once, after cloning
 godot --headless --path . -s tests/test_logic.gd                  # 201 rule and record checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (209 checks)
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop, pause and touch included (235 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).

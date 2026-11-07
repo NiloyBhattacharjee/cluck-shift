@@ -9,6 +9,7 @@ extends SceneTree
 ## 2) Idle night: a late Shift press makes a tray miss the gate; with no other presses the player
 ##    is sent home in the first hour, the belt freezes, and one Enter starts a clean new night.
 ##    Esc then Q quits a night to the title without it counting as a night played.
+## 3) Touch: every screen again with taps instead of keys.
 ## Run: godot --headless --fixed-fps 60 -s tests/test_play.gd     (exit code 0 = all passed)
 
 const FPS := 60
@@ -36,6 +37,7 @@ var strange_by_hour := {}  # hour -> strange trays seen on the belt
 var dark_by_hour := {}  # hour -> the lights went out
 var radio_seen := false
 var escape_popup_seen := false
+var touch_step := 0
 var spin_checked := false
 var spin_payout := 0
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
@@ -63,8 +65,10 @@ func _physics_process(_delta: float) -> bool:
 		_finish()
 	elif phase == "night":
 		_night()
-	else:
+	elif phase == "idle":
 		_idle()
+	else:
+		_touch()
 	return false
 
 
@@ -399,8 +403,116 @@ func _check_new_night() -> void:
 	_key(KEY_Q)
 	check(main.state == Main.State.MENU and not main.paused and main.title.visible, "Q on the pause card quits to the title")
 	check(Records.load_file(RECORDS).nights == 3, "a night quit from the pause card doesn't count")
-	DirAccess.remove_absolute(RECORDS)
-	_finish()
+	phase = "touch"
+
+
+# --- run 3: a player on a touchscreen ---------------------------------------
+
+## Goes through every screen with taps: the gates, the emergency stop, the pause menu, the break room,
+## the slots and being sent home. A tap right after a screen opens must do nothing.
+func _touch() -> void:
+	var s: ShiftState = main.logic
+	match touch_step:
+		0:  # the title
+			if in_state == 2:
+				check(not main.touch and not main.belt.touch, "keyboard wording until the first tap")
+				_tap(Vector2(100, 300))
+				check(main.touch and main.title.touch and main.belt.touch and main.shop.touch, "a tap switches to touch wording")
+				check(main.state == Main.State.MENU, "a tap right after a screen opens does nothing else")
+			elif in_state == 60:
+				_tap(Vector2(100, 300))
+				check(main.state == Main.State.PLAYING, "a tap on the title clocks in")
+				touch_step = 1
+		1:  # the line
+			if in_state == 2:
+				check(main.pause_button.visible and not main.pause_menu.visible, "the pause button shows on the line")
+			elif in_state == 10:
+				_tap(Vector2(100, 300))
+				check(s.route == "left", "a tap on the left half works the left gate")
+			elif in_state == 25:
+				_tap(Vector2(800, 300))
+				check(s.route == "right", "a tap on the right half works the right gate")
+			elif in_state == 40:
+				var before := s.estops_left
+				_tap(Vector2(100, 300))
+				_tap(Vector2(800, 300))
+				check(s.estops_left == before - 1 and s.is_stopped() and s.route == "right", "two fingers, one each side: an emergency stop")
+			elif in_state == 50:
+				var route := s.route
+				_tap(main.pause_button.get_global_rect().get_center())
+				check(s.route == route, "a tap on the pause button moves no gate")
+				main.pause_button.pressed.emit()
+				check(main.paused and main.pause_menu.visible and not main.pause_button.visible, "the pause button pauses and opens the menu")
+				_tap(Vector2(100, 300))
+				check(s.route == route, "paused: a tap moves no gate")
+				_key(KEY_P)
+				check(not main.touch and not main.paused and not main.pause_menu.visible, "a key switches back to keyboard wording")
+				_key(KEY_P)
+				_tap(Vector2(100, 300))
+				check(main.touch and main.pause_menu.visible and main.paused, "and a tap switches to touch again")
+				main.sound_button.pressed.emit()
+				check(AudioServer.is_bus_mute(0) and "OFF" in main.sound_button.text, "the sound button mutes")
+				main.sound_button.pressed.emit()
+				check(not AudioServer.is_bus_mute(0) and "ON" in main.sound_button.text, "and unmutes")
+				main.get_node("HUD/PauseMenu/Back").pressed.emit()
+				check(not main.paused and not main.dim.visible and main.pause_button.visible, "Back to work resumes")
+				s.pay = 1000
+				main.hour_timer.stop()
+				main._on_hour_over()
+				touch_step = 2
+		2:  # the break room: tap to choose, tap again to buy
+			if in_state == 2:
+				_tap(main.shop.card_rect(0).get_center())
+				check(main.shop.selected == main.shop.items.size() - 1, "a tap right after the break room opens selects nothing")
+			elif in_state == 60:
+				var coffee: Rect2 = main.shop.card_rect(0)
+				_tap(Vector2(10, 10))
+				check(main.state == Main.State.SHOP and main.shop.selected == main.shop.items.size() - 1, "a tap off the cards does nothing")
+				_tap(coffee.get_center())
+				check(main.shop.selected == 0 and s.spent == 0 and main.state == Main.State.SHOP, "a tap chooses a card without buying")
+				_tap(coffee.get_center())
+				check(s.coffee and s.spent > 0 and main.state == Main.State.PLAYING, "a second tap buys it and starts the hour")
+				main.hour_timer.stop()
+				main._on_hour_over()
+				in_state = 0  # back in the break room within the same frame, so the state change above won't reset it
+				touch_step = 3
+		3:  # the slots
+			if in_state == 60:
+				var card: Rect2 = main.shop.card_rect(4)
+				_tap(card.get_center())
+				_tap(card.get_center())
+				check(main.state == Main.State.SLOTS, "two taps on the slots spin them")
+				touch_step = 4
+		4:
+			if in_state in [5, 15, 25]:
+				_tap(Vector2(480, 270))
+			elif in_state > 25 and main.slots.done and not frozen.has("landed"):
+				frozen["landed"] = true
+				_tap(Vector2(480, 270))
+				check(main.state == Main.State.SLOTS, "a tap as the reels land can't skip the result")
+			elif frozen.has("landed") and main.slots.since_done() > 0.6:
+				_tap(Vector2(480, 270))
+				check(main.state == Main.State.PLAYING, "a tap after that goes back to the line")
+				frozen = {}
+				main._enter(Main.State.GAME_OVER)
+				touch_step = 5
+		5:  # sent home
+			if in_state == 2:
+				check("Tap to clock in again" in main.message.text, "the sent-home card says Tap")
+				_tap(Vector2(480, 270))
+				check(main.state == Main.State.GAME_OVER, "a tap right after being sent home can't skip the card")
+			elif in_state == 60:
+				_tap(Vector2(480, 270))
+				check(main.state == Main.State.PLAYING and main.logic != s, "a tap after that starts a new night")
+				DirAccess.remove_absolute(RECORDS)
+				_finish()
+
+
+func _tap(at: Vector2) -> void:
+	var e := InputEventScreenTouch.new()
+	e.position = at
+	e.pressed = true
+	root.push_input(e, true)  # at is in the game's 960 x 540, whatever the size of the headless window
 
 
 ## Presses the Shift that sends the front unrouted tray to its exit, at most every 0.25 s.
