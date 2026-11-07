@@ -230,7 +230,8 @@ fresh.
 
 Kinds and stamps differ in shape as well as colour, so they can be told apart without colour vision. A new tray's
 exit is picked first, then a tray that goes there (section 23.7). At an exit both a kind and a stamp go to, `stamp_chance`
-(30%) of trays are stamped. At an exit only a stamp goes to, every tray is stamped, on a random kind.
+(45%) of trays are stamped. At an exit only a stamp goes to, every tray is stamped, on a random kind. A stamp a note has
+cancelled keeps appearing as a decoy on the same share of trays, and those trays go where their kind goes.
 
 **A stamp rule beats the kind rule.** A red-stamped wing goes where red stamps go. A tray with no stamp, or with a
 stamp that has no rule, goes where its kind goes.
@@ -494,7 +495,7 @@ so the game has no audio files and no licences to track.
 | `clean_hour_bonus` | rules.json | 100 | Bonus for an hour with no strikes. |
 | `strikes_allowed` | rules.json | 3 | Strikes in one hour before you are sent home. |
 | `estops` / `estop_seconds` | rules.json | 3 / 2.5 | Emergency stops per night and their length. |
-| `stamp_chance` | rules.json | 0.3 | Share of trays stamped at an exit both a kind and a stamp go to. |
+| `stamp_chance` | rules.json | 0.45 | Share of trays stamped at an exit both a kind and a stamp go to, and of trays with a cancelled stamp as a decoy. |
 | `no_repeat_from` | rules.json | 2 (12 AM) | From this hour no two trays in a row share an exit. Before it, never three. |
 | `interval_jitter` | rules.json | 0.15 | Each gap between trays is the interval, give or take this share. |
 | `swing_seconds` | rules.json | 0.08 | Gate swing time; a tray arriving mid-swing is missed. |
@@ -910,8 +911,13 @@ flowchart TD
   rule there would be a plain left, right, left, right.
 - **Every hour starts as if the last tray went straight on,** because the gates start closed.
 - **A strange tray counts as going straight on,** so letting one through also needs a key press.
-- **Stamps follow the bins.** A bin only a stamp goes to gets its full share of trays. About a third of trays are stamped
-  from 12 AM to 2 AM and over 40% at 3 AM, then 20% at 4 AM and 10% at 5 AM, when wings and not red stamps fill the straight bin.
+- **Stamps never fade out.** A bin only a stamp goes to gets its full share of trays. Stamps would otherwise fade at 4 AM
+  and 5 AM, once wings fill the straight bin, so `stamp_chance` is 45% and red trays keep coming after the 5 AM note cancels
+  them, going where their chicken goes. That makes 5 AM the hour with the most stamps to read (tested):
+
+  | Hour | 12 AM to 2 AM | 3 AM | 4 AM | 5 AM |
+  |---|---|---|---|---|
+  | Trays stamped | about 30% | about 45% | about 25% | about 50% |
 - **The rhythm varies.** Each gap is `logic.interval`, give or take `interval_jitter` (15%), from `next_gap()`. At the
   shortest gap trays still have at least 0.6 s and 100 px between them (tested).
 

@@ -16,7 +16,7 @@ the night, never the file's data. Edit it, relaunch, and run the tests.
 | `hour_seconds` | number | Length of each hour in seconds of play. |
 | `note_seconds` | number | How long the supervisor note shows at the start of an hour; the first tray spawns when it goes. |
 | `clean_hour_bonus` | integer | Added at the end of an hour with no strikes (and at least one tray sorted). |
-| `stamp_chance` | number, 0 to 1 | Share of trays stamped at an exit both a kind and a stamp go to. |
+| `stamp_chance` | number, 0 to 1 | Share of trays stamped at an exit both a kind and a stamp go to, and of trays with a cancelled stamp as a decoy. |
 | `no_repeat_from` | integer | From this hour no two trays in a row share an exit. Before it, never three. |
 | `interval_jitter` | number, 0 to 0.5 | Each gap between trays is the interval, give or take this share. |
 | `swing_seconds` | number | How long a gate takes to swing; a tray reaching the red line during it is missed. |

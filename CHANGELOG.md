@@ -13,7 +13,8 @@ All notable changes to Cluck Shift are recorded here. The format follows
 ### Changed
 - **No more auto combos** (#40). A tray's exit is picked first, every open exit equally likely. From 12 AM no two trays
   in a row share an exit, so every tray needs a key press; before that, never three. Gaps between trays vary by 15%.
-  How many trays are stamped now depends on the hour: from over 40% at 3 AM down to 10% at 5 AM.
+  From 12 AM between a quarter and a half of trays are stamped, the most at 5 AM. Red trays now keep coming after the 5 AM note
+  cancels them, as decoys that go where their chicken goes.
 - The break room is now two rows of cards, to fit six.
 - **Fast pacing.** A night is about 4 minutes instead of 10: hours last 30 s, not 75, so a new rule lands every 30 s.
   The belt starts at 160 px/s, not 100, and trays reach one every 0.72 s by 5 AM, not 0.9 s.

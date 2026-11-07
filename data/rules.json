@@ -7,7 +7,7 @@
   "hour_seconds": 30,
   "note_seconds": 3,
   "clean_hour_bonus": 100,
-  "stamp_chance": 0.3,
+  "stamp_chance": 0.45,
   "no_repeat_from": 2,
   "interval_jitter": 0.15,
   "swing_seconds": 0.08,

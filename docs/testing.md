@@ -16,7 +16,7 @@ godot --headless --path . --fixed-fps 60 -s tests/test_play.gd
 `godot` is your Godot 4.7 binary (on Windows, the `_console.exe` build shows the output). `--fixed-fps 60` makes the
 play test run a whole 4-minute night in about five seconds, frame for frame the same as real time.
 
-## tests/test_logic.gd: the rules (283 checks)
+## tests/test_logic.gd: the rules (299 checks)
 
 Drives `ShiftState` directly. No scene, no timing.
 
@@ -31,7 +31,7 @@ Drives `ShiftState` directly. No scene, no timing.
 | Belt per hour | Each hour starts at its first speed and interval, rises linearly, stops at its second value; the next hour starts at its own speed. |
 | Supervisor notes | Replays every note in order: 10 PM changes nothing; nuggets move right; red stamps go straight and beat the kind; tenders appear; the 2 AM swap moves every left/right rule but not straight, and marks exactly what moved; by 5 AM red is cancelled, blue goes left and wings go straight. Notes never change the data a new night starts from. |
 | Hour tally | A clean hour earns the bonus and the tally names the hour; no bonus after a strike or with nothing sorted. |
-| Spawning | Before any stamp rule there are only the three kinds and no stamps. Over 2,000 trays in each of the eight hours, with strange trays kept coming: never three in a row to one exit; from 12 AM never two, with all three exits in play; every open exit gets a fair share. A bin only a stamp goes to gets its share. A kind added by a note starts spawning. The gap between trays stays within `interval_jitter` and really varies. |
+| Spawning | Before any stamp rule there are only the three kinds and no stamps. Over 2,000 trays in each of the eight hours, with strange trays kept coming: never three in a row to one exit; from 12 AM never two, with all three exits in play; every open exit gets a fair share. From 12 AM at least a fifth of trays are stamped, and 5 AM has the most. Red trays keep coming after the 5 AM note cancels them, go where their kind goes, and appear in no other hour. A kind added by a note starts spawning. The gap between trays stays within `interval_jitter` and really varies. |
 | Gambling | A bet needs the money and comes off the wallet, not `spent`. A clean hour wins it; a strike, or nothing sorted, loses it; a strike the mate covers doesn't. 20,000 spins: every result pays what the table says, each symbol comes up as often as its weight says, and the measured payback matches the table. |
 | Shop | Can't buy with an empty wallet, and a refused purchase changes nothing. Buying takes the price off the wallet, not off what you earned. Unknown items can't be bought. One dollar short is still too short. |
 | Items | Coffee slows the belt and spaces trays by the same factor (gap unchanged) and lasts one hour. Mate's Help covers a wrong tray (no strike, combo still breaks, no pay), only once, lasts across hours until used, and covers a missed tray too (which still falls). |
