@@ -23,11 +23,12 @@ cluck_shift/
 │   ├── juice.gd           # Juice: popups, particle puffs, screen shake (show only, no rules)
 │   ├── title.gd           # the title screen, drawn with shapes
 │   ├── shop_view.gd       # the break-room vending machine, drawn with shapes
+│   ├── slots_view.gd      # Chicken Slots: reels that reveal ShiftState's result, drawn with shapes
 │   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip, ledger chart), drawn with shapes
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
-│   ├── test_logic.gd      # 209 checks on ShiftState, Records, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (196 checks)
+│   ├── test_logic.gd      # 283 checks on ShiftState, Records, Tray.advance and rules.json
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (209 checks)
 └── docs/                  # this folder
 ```
 
@@ -56,6 +57,7 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
     ├── Dim (ColorRect)                   overlay for the game over and pause cards
     │   └── Message (Label)
     ├── Shop (Control)        shop_view.gd  the break room, visible only in SHOP
+    ├── Slots (Control)       slots_view.gd Chicken Slots, visible only in SLOTS
     ├── Title (Control)       title.gd      the title screen, visible only in MENU
     └── Ending (Control)      ending.gd     the 6 AM ending and payslip, visible only in WIN
 ```
@@ -73,6 +75,7 @@ Autoload: `Sfx` (`scripts/sfx.gd`), one `AudioStreamPlayer` per named sound, eac
 | `juice.gd` (`Juice`) | Popups, puffs, camera shake (trauma) | Anything that affects the score |
 | `records.gd` (`Records`, static) | Loading and saving `user://records.cfg`; `merge()` folds a finished night into the records and says which it beat | Knowing when a night ends (main.gd calls it from GAME_OVER and WIN) |
 | `title.gd`, `shop_view.gd`, `ending.gd` | Drawing the title (with the best night), the vending machine and the 6 AM ending (with the ledger chart) from the values main.gd sets | Input or buying |
+| `slots_view.gd` | Animating the reels and the win; it plays their sounds and tells main.gd when they land | Picking the result or paying out: `ShiftState` does both when the spin is bought |
 | `sfx.gd` (`Sfx`) | Synthesizing and playing named sounds, the hum and music loops | Knowing when to play |
 
 The split exists for one reason: **every rule is in a class with no nodes, so it can be tested directly** and the
@@ -129,7 +132,7 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
 - In PLAYING, Esc or P toggles `paused` (#31). While paused, M toggles mute, Q quits to MENU, and Shift is ignored.
 - In MENU, M toggles mute.
 - In SHOP, Left / Right Shift move `shop.selected` (wrapping).
-- Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING,
+- Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING, SLOTS to PLAYING once the reels land,
   SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER to a new night in PLAYING, WIN to MENU.
   Everything else is ignored.
 - In PLAYING and SHOP, `_side(event)` names the gate: Shift with `KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`. A Shift

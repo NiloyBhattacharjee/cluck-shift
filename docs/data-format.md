@@ -8,7 +8,7 @@ the night, never the file's data. Edit it, relaunch, and run the tests.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `routes` | object: kind to exit | Starting rules: where each tray kind goes at 10 PM. Exits are `"left"`, `"center"` (straight on) and `"right"`. Every kind with a rule spawns, with equal chance. Two kinds may share an exit. |
+| `routes` | object: kind to exit | Starting rules: where each tray kind goes at 10 PM. Exits are `"left"`, `"center"` (straight on) and `"right"`. Every kind with a rule spawns. Two kinds may share an exit, and then each comes up half as often, because the exit is picked first. |
 | `pay_per_tray` | integer | Pay for a correct tray before the combo multiplier. |
 | `strikes_allowed` | integer | Strikes in one hour before the player is sent home. |
 | `estops` | integer | Emergency stops per night. |
@@ -16,10 +16,13 @@ the night, never the file's data. Edit it, relaunch, and run the tests.
 | `hour_seconds` | number | Length of each hour in seconds of play. |
 | `note_seconds` | number | How long the supervisor note shows at the start of an hour; the first tray spawns when it goes. |
 | `clean_hour_bonus` | integer | Added at the end of an hour with no strikes (and at least one tray sorted). |
-| `stamp_chance` | number, 0 to 1 | Share of trays that get a stamp while any stamp rule exists. |
+| `stamp_chance` | number, 0 to 1 | Share of trays stamped at an exit both a kind and a stamp go to. |
+| `no_repeat_from` | integer | From this hour no two trays in a row share an exit. Before it, never three. |
+| `interval_jitter` | number, 0 to 0.5 | Each gap between trays is the interval, give or take this share. |
 | `swing_seconds` | number | How long a gate takes to swing; a tray reaching the red line during it is missed. |
 | `coffee_factor` | number, 0.5 to 1 | Coffee multiplies belt speed by this and divides the tray interval by it. |
 | `shop` | array of items | The break-room items, in display order (Skip is added by the game). |
+| `slots` | object | Chicken Slots: reel odds and payouts (below). |
 | `pa` | object | PA announcements (below). |
 | `strange` | object | The strange night from 2 AM: strange trays, radio clucks, flickering lights (below). |
 | `endings` | object | Title and line for the `normal` and `secret` 6 AM endings (below). |
@@ -58,16 +61,37 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 
 - there are not 8 hours, or `hour_seconds` is less than `note_seconds + 20`,
 - an hour's belt gets slower, or `speed x interval` is 100 px or less at either end (trays could overlap),
-- an hour's last interval is below 0.6 s,
+- an hour's last interval, at the shortest gap `interval_jitter` allows, is below 0.6 s,
+- `no_repeat_from` is before 12 AM (11 PM has only two exits) or after the last hour, or `interval_jitter` is not between 0 and 0.5,
+- a slot symbol has no drawing or payout, or its weight is not a multiple of 5,
+- Chicken Slots pays back under 80% or 100% or more, or a pair pays as much as a spin costs,
 - an hour's top speed leaves under 0.4 s to react to a tray coming out from under the PA banner,
 - a note has no `text`, or (after the first hour) does not change exactly one rule,
 - a route or stamp names an exit other than `left`, `center` or `right`, or a swap names the same exit twice,
 - any kind (starting or added by a note) has no drawing in `Tray.FOOD`, or any stamp none in `Tray.STAMPS`,
 - `stamp_chance` is not between 0 and 0.5, or `swing_seconds` is not shorter than the both-Shifts window,
-- a shop item lacks a name, text or positive price, or the shop is not exactly Coffee, Mate's Help and Earplugs,
+- a shop item lacks a name, text or positive price, or the shop is not exactly Coffee, Mate's Help, Earplugs, Double or Nothing and Chicken Slots,
 - `coffee_factor` is not between 0.5 and 1,
 - the PA starts at 10 PM or after the last hour, announcements could overlap (`every[0]` <= `seconds`), or there are
   fewer than 4 lines.
+
+## Chicken Slots
+
+```json
+"slots": {
+  "weights": { "wing": 40, "drumstick": 30, "nugget": 25, "stranger": 5 },
+  "pair": 40,
+  "three": { "wing": 100, "drumstick": 200, "nugget": 400, "stranger": 5000 }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `weights` | How likely each symbol is on each reel. Symbols need a drawing in `Tray.FOOD`, and weights must be multiples of 5, because a weight of 5 is one place on the strip. |
+| `pair` | What any two matching symbols pay. |
+| `three` | What three of each symbol pay. |
+
+The spin's price is the `slots` item's `price` in `shop`.
 
 ## Shop item
 
@@ -77,7 +101,7 @@ The first hour's note has only `text`. Every later note has `text` and **exactly
 
 | Field | Meaning |
 |---|---|
-| `id` | `coffee`, `mate` or `earplugs`: the effect `ShiftState.buy()` applies. A new id needs code. |
+| `id` | `coffee`, `mate`, `earplugs`, `double` or `slots`: the effect `ShiftState.buy()` applies. A new id needs code. |
 | `name`, `text` | Shown on the vending-machine card. |
 | `price` | Taken off the wallet. Refused if the wallet is short. |
 

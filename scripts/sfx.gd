@@ -21,6 +21,9 @@ func _ready() -> void:
 	_add("clock_in", 0.7, func(t): return (sin(TAU * 660.0 * t) * _decay(t, 6.0) + (sin(TAU * 990.0 * t) * _decay(t - 0.16, 6.0) if t > 0.16 else 0.0)) * 0.45)
 	_add("hour_end", 1.1, func(t): return (sin(TAU * 523.0 * t) + 0.6 * sin(TAU * 784.0 * t) + _noise() * 0.15) * minf(t * 8.0, 1.0) * _fade(t, 1.1) * 0.4)
 	_add("cash", 0.5, func(t): return _noise() * _decay(t, 40.0) * 0.4 + (sin(TAU * 2093.0 * t) + sin(TAU * 2637.0 * t)) * _decay(t - 0.05, 9.0) * 0.3 * float(t > 0.05))
+	_add("reel_tick", 0.03, func(t): return sin(TAU * 1800.0 * t) * _decay(t, 150.0) * 0.4)
+	_add("reel_stop", 0.14, func(t): return sin(TAU * _sweep(t, 260.0, 90.0, 0.14)) * _decay(t, 28.0) * 0.7 + _noise() * _decay(t, 90.0) * 0.25)
+	_add("jackpot", 1.5, func(t): return (_square(_arpeggio(t) * t) * 0.25 + sin(TAU * _arpeggio(t) * 2.0 * t) * 0.3) * _fade(t, 1.5))
 	_add("select", 0.05, func(t): return sin(TAU * 1200.0 * t) * _decay(t, 70.0) * 0.5)
 	_add("pa_jingle", 0.9, func(t): return sin(TAU * (784.0 if t < 0.4 else 622.0) * t) * _decay(fmod(t, 0.4), 5.0) * 0.45)
 	_add("cluck", 0.26, func(t): return sin(TAU * _sweep(fmod(t, 0.13), 950.0, 480.0, 0.13)) * _decay(fmod(t, 0.13), 16.0) * 0.5)
@@ -79,6 +82,11 @@ static func _music(t: float) -> float:
 	var kick := sin(TAU * _sweep(beat, 120.0, 45.0, STEP * 2.0)) * _decay(beat, 14.0)
 	var hat := _noise() * _decay(into, 70.0) * float(step % 2 == 1)
 	return bass * 0.35 + kick * 0.5 + hat * 0.12
+
+
+## A rising run of notes, round and round: C E G C.
+static func _arpeggio(t: float) -> float:
+	return [523.25, 659.25, 783.99, 1046.5][int(t * 12.0) % 4]
 
 
 static func _noise() -> float:

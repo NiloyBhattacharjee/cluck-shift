@@ -27,6 +27,10 @@ var interval := 0.0  # seconds between new trays
 
 var pay := 0  # earned over the night, bonuses included
 var spent := 0  # spent in the shop
+var winnings := 0  # net result of Double or Nothing and Chicken Slots; can be negative
+var bet := 0  # staked on this hour being clean (Double or Nothing)
+var last_bet := 0  # what the latest Double or Nothing made or lost
+var last_spin := {}  # the latest Chicken Slots result: reels, payout
 var last_gain := 0  # pay from the latest correct tray
 var combo := 0  # carries over between hours
 var best_combo := 0
@@ -56,6 +60,8 @@ var strange_seen := 0  # strange trays that reached the red line, all night
 var escaped := 0  # of those, sent straight on to the loading dock
 var hour_strange := 0  # strange trays spawned this hour (at most strange.max_per_hour)
 
+var _last_exit := "center"  # where the latest tray was sent; the gates start each hour closed
+var _exit_run := 1  # how many trays in a row have gone there
 var _route_before := "center"  # route before the latest toggle, restored by an emergency stop
 var _last_press := {"left": -INF, "right": -INF}
 
@@ -80,6 +86,8 @@ func start_hour() -> void:
 	hour_pay = 0
 	hour_strange = 0
 	route = "center"
+	_last_exit = "center"
+	_exit_run = 1
 	swing_left = 0.0
 	note = cfg.hours[hour].get("note", {})
 	changed = apply_note(note)
@@ -121,6 +129,11 @@ func apply_note(n: Dictionary) -> Array:
 func end_hour() -> Dictionary:
 	var bonus := int(cfg.clean_hour_bonus) if strikes == 0 and hour_sorted > 0 else 0
 	pay += bonus
+	last_bet = 0
+	if bet > 0:
+		last_bet = bet if strikes == 0 and hour_sorted > 0 else -bet
+		winnings += bet + last_bet
+		bet = 0
 	coffee = false
 	earplugs = false
 	var tally := {"from": hour_name(hour), "to": hour_name(hour + 1), "sorted": hour_sorted, "ok": hour_ok,
@@ -132,7 +145,7 @@ func end_hour() -> Dictionary:
 # --- shop ------------------------------------------------------------------
 
 func wallet() -> int:
-	return pay - spent
+	return pay - spent + winnings
 
 
 func shop_item(id: String) -> Dictionary:
@@ -148,7 +161,10 @@ func buy(id: String) -> bool:
 	var item := shop_item(id)
 	if item.is_empty() or item.price > wallet():
 		return false
-	spent += int(item.price)
+	if id == "double" or id == "slots":
+		winnings -= int(item.price)
+	else:
+		spent += int(item.price)
 	match id:
 		"coffee":
 			coffee = true
@@ -156,7 +172,35 @@ func buy(id: String) -> bool:
 			earplugs = true
 		"mate":
 			mates += 1
+		"double":
+			bet = int(item.price)
+		"slots":
+			_spin()
 	return true
+
+
+## One go on Chicken Slots: three reels, each picked on its own by slots.weights.
+func _spin() -> void:
+	var reels := [_weighted(cfg.slots.weights), _weighted(cfg.slots.weights), _weighted(cfg.slots.weights)]
+	var payout := 0
+	if reels[0] == reels[1] and reels[1] == reels[2]:
+		payout = int(cfg.slots.three[reels[0]])
+	elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+		payout = int(cfg.slots.pair)
+	winnings += payout
+	last_spin = {"reels": reels, "payout": payout}
+
+
+func _weighted(weights: Dictionary) -> String:
+	var total := 0.0
+	for key: String in weights:
+		total += weights[key]
+	var roll := rng.randf() * total
+	for key: String in weights:
+		roll -= weights[key]
+		if roll < 0.0:
+			return key
+	return weights.keys()[0]
 
 
 func is_last_hour() -> bool:
@@ -248,17 +292,41 @@ func ending() -> String:
 	return "secret" if strange_seen > 0 and escaped == strange_seen else "normal"
 
 
-## Picks the next tray: sometimes a strange one (from 2 AM, a few an hour), otherwise a kind from
-## the current rules, with a stamp some of the time.
+## Picks the next tray. The exit comes first, every open exit equally likely, so no food is common
+## just because several kinds share a bin. An exit can't repeat, because a repeat needs no key press:
+## from no_repeat_from no two trays in a row share one, and before that never three. A strange tray
+## (from 2 AM, a few an hour) counts as going straight on, where it wants to go.
 func next_tray() -> Dictionary:
-	if is_strange_hour() and hour_strange < int(cfg.strange.max_per_hour) and rng.randf() < cfg.strange.chance:
+	if is_strange_hour() and hour_strange < int(cfg.strange.max_per_hour) and _last_exit != "center" \
+			and rng.randf() < cfg.strange.chance:
 		hour_strange += 1
+		_note_exit("center")
 		return {"kind": STRANGE, "stamp": ""}
-	var kinds := routes.keys()
-	var stamp := ""
-	if not stamps.is_empty() and rng.randf() < cfg.stamp_chance:
-		stamp = stamps.keys()[rng.randi() % stamps.size()]
-	return {"kind": kinds[rng.randi() % kinds.size()], "stamp": stamp}
+	var open := EXITS.filter(func(e: String) -> bool: return e in routes.values() or e in stamps.values())
+	if open.size() > 1 and _exit_run >= (1 if hour >= int(cfg.no_repeat_from) else 2):
+		open.erase(_last_exit)
+	var exit: String = _pick(open)
+	_note_exit(exit)
+	var kinds := routes.keys().filter(func(k: String) -> bool: return routes[k] == exit)
+	var colours := stamps.keys().filter(func(s: String) -> bool: return stamps[s] == exit)
+	if not colours.is_empty() and (kinds.is_empty() or rng.randf() < cfg.stamp_chance):
+		return {"kind": _pick(routes.keys()), "stamp": _pick(colours)}
+	return {"kind": _pick(kinds), "stamp": ""}
+
+
+## Seconds until the next tray: this moment's interval, varied so the rhythm can't be learned.
+func next_gap() -> float:
+	var jitter: float = cfg.interval_jitter
+	return interval * rng.randf_range(1.0 - jitter, 1.0 + jitter)
+
+
+func _note_exit(exit: String) -> void:
+	_exit_run = _exit_run + 1 if exit == _last_exit else 1
+	_last_exit = exit
+
+
+func _pick(from: Array) -> Variant:
+	return from[rng.randi() % from.size()]
 
 
 ## Where a tray belongs. A stamp rule beats the kind rule.

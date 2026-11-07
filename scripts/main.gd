@@ -3,7 +3,7 @@ extends Node2D
 ## the pause menu and the record book.
 ## The rules themselves live in ShiftState (scripts/shift_state.gd).
 
-enum State { MENU, PLAYING, SHOP, GAME_OVER, WIN }
+enum State { MENU, PLAYING, SHOP, SLOTS, GAME_OVER, WIN }
 
 const TRAY := preload("res://scenes/tray.tscn")
 const ROUTE_NAMES := {"left": "LEFT", "center": "STRAIGHT", "right": "RIGHT"}
@@ -39,6 +39,7 @@ var records: Dictionary  # the record book and the mute setting (#32)
 @onready var dim: ColorRect = $HUD/Dim
 @onready var message: Label = $HUD/Dim/Message
 @onready var shop: Control = $HUD/Shop
+@onready var slots: Control = $HUD/Slots
 @onready var title: Control = $HUD/Title
 @onready var ending: Control = $HUD/Ending
 
@@ -49,6 +50,7 @@ func _ready() -> void:
 	spawn_timer.timeout.connect(_spawn)
 	hour_timer.timeout.connect(_on_hour_over)
 	shop.items = cfg.shop + [SKIP]
+	slots.settled.connect(_on_spin_settled)
 	_pa_colour = pa_banner.color
 	records = Records.load_file(records_path)
 	AudioServer.set_bus_mute(0, records.muted)
@@ -71,6 +73,7 @@ func _enter(new_state: State) -> void:
 		_set_lights(false)
 	title.visible = state == State.MENU
 	shop.visible = state == State.SHOP
+	slots.visible = state == State.SLOTS
 	ending.visible = state == State.WIN
 	_show("")
 	match state:
@@ -83,25 +86,35 @@ func _enter(new_state: State) -> void:
 		State.SHOP:
 			shop.selected = shop.items.size() - 1  # start on Skip, so Enter alone never spends
 			_refresh_shop()
+		State.SLOTS:
+			slots.wallet = logic.wallet() - logic.last_spin.payout  # the win shows when the reels stop
+			slots.start(logic.last_spin, cfg.slots.weights)
 		State.GAME_OVER:
 			juice.shake(1.0)
 			var beaten := _record_night(false)
-			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter to clock in again"
-				% [logic.clock_text(), logic.pay, logic.spent, logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo,
+			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d%s\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter to clock in again"
+				% [logic.clock_text(), logic.pay, logic.spent, "    Bets: %s" % _signed(logic.winnings) if logic.winnings != 0 else "",
+				logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo,
 				"NEW BEST: %s\n" % beaten if beaten != "" else ""])
 		State.WIN:
 			var which := logic.ending()
 			Sfx.play("clock_in")
 			if which == "secret":
 				Sfx.play("cluck", 1.1)
-			var rows := [["Earned", "$%d" % logic.pay], ["Break room", "-$%d" % logic.spent],
-				["Take-home pay", "$%d" % logic.wallet()], ["Trays sorted", str(logic.sorted_total)],
+			var rows := [["Earned", "$%d" % logic.pay], ["Break room", "-$%d" % logic.spent]]
+			if logic.winnings != 0:
+				rows.append(["Bets and slots", _signed(logic.winnings)])
+			rows += [["Take-home pay", "$%d" % logic.wallet()], ["Trays sorted", str(logic.sorted_total)],
 				["Accuracy", "%d%%" % roundi(logic.accuracy() * 100)], ["Best combo", str(logic.best_combo)]]
 			if logic.strange_seen > 0:
 				rows.append(["Let through to the dock", "%d of %d" % [logic.escaped, logic.strange_seen]])
 			ending.show_ending(which == "secret", cfg.endings[which], rows, logic.ledger, _record_night(true))
 	_refresh_rules()
 	_update_hud()
+
+
+func _signed(amount: int) -> String:
+	return "%s$%d" % ["+" if amount >= 0 else "-", absi(amount)]
 
 
 func _start_hour() -> void:
@@ -189,6 +202,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if state == State.MENU and key.keycode == KEY_M:
 		_toggle_mute()
 		return
+	if state == State.SLOTS and side != "":
+		slots.stop_next()
+		return
 	if state == State.SHOP and side != "":
 		shop.selected = wrapi(shop.selected + (-1 if side == "left" else 1), 0, shop.items.size())
 		Sfx.play("select")
@@ -200,6 +216,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				_enter(State.PLAYING)
 			State.SHOP:
 				_checkout()
+			State.SLOTS:
+				if slots.done:
+					_enter(State.PLAYING)
 			State.GAME_OVER:  # one key to try again
 				_enter(State.MENU)
 				_enter(State.PLAYING)
@@ -246,18 +265,35 @@ func _on_shift(side: String) -> void:
 	_update_hud()
 
 
-## Enter in the shop: buy the selected item (or skip) and start the next hour.
+## Enter in the shop: buy the selected item (or skip) and start the next hour, or spin the slots first.
 func _checkout() -> void:
 	var item: Dictionary = shop.items[shop.selected]
 	if item.id == "skip":
 		_enter(State.PLAYING)
 	elif logic.buy(item.id):
 		Sfx.play("cash")
+		if item.id == "slots":
+			_enter(State.SLOTS)
+			return
 		_enter(State.PLAYING)
 		juice.popup(item.name.to_upper() + "!", Vector2(480, 380), Color("ffca28"), 26)
 	else:
 		Sfx.play("strike_buzz")
 		juice.shake(0.2)
+
+
+## The reels have stopped: pay out, as loudly as the win deserves.
+func _on_spin_settled() -> void:
+	slots.wallet = logic.wallet()
+	var spin: Dictionary = logic.last_spin
+	if spin.payout >= cfg.slots.three.stranger:
+		Sfx.play("jackpot")
+	elif spin.payout > cfg.slots.pair:
+		Sfx.play("jackpot", 1.3)
+	elif spin.payout > 0:
+		Sfx.play("cash")
+	else:
+		Sfx.play("missed")
 
 
 # --- belt ------------------------------------------------------------------
@@ -309,7 +345,7 @@ func _spawn() -> void:
 	t.position = Belt.SPAWN
 	t.path = [Belt.FORK]
 	trays.add_child(t)
-	spawn_timer.start(logic.interval)
+	spawn_timer.start(logic.next_gap())
 
 
 func _on_tray_at_fork(area: Area2D) -> void:
@@ -363,8 +399,9 @@ func _show(text: String) -> void:
 func _refresh_shop() -> void:
 	shop.wallet = logic.wallet()
 	var t: Dictionary = logic.ledger.back()
-	shop.heading = "%s - %s done: %d of %d right, %d strikes, $%d pay + $%d clean bonus" % [t.from, t.to, t.ok, t.sorted, t.strikes, t.pay, t.bonus]
+	shop.heading = "%s - %s done: %d of %d right, %d strike%s, $%d pay + $%d clean bonus" % [t.from, t.to, t.ok, t.sorted, t.strikes, "" if t.strikes == 1 else "s", t.pay, t.bonus]
 	shop.owned = "Mate's Help x%d" % logic.mates if logic.mates > 0 else ""
+	shop.bet_result = logic.last_bet
 	shop.queue_redraw()
 
 
@@ -396,6 +433,8 @@ func _update_hud() -> void:
 		items.append("COFFEE")
 	if logic.earplugs:
 		items.append("EARPLUGS")
+	if logic.bet > 0:
+		items.append("BET $%d" % logic.bet)
 	if logic.mates > 0:
 		items.append("MATE x%d" % logic.mates)
 	stats.text = "%s   HOUR %d/%d\nPAY  $%d\nCOMBO  %d   (x%d pay)\nSTRIKES  %s\nE-STOPS  %d\nBELT  %.1fx%s\n%s" % [

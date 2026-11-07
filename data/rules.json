@@ -8,13 +8,22 @@
   "note_seconds": 3,
   "clean_hour_bonus": 100,
   "stamp_chance": 0.3,
+  "no_repeat_from": 2,
+  "interval_jitter": 0.15,
   "swing_seconds": 0.08,
   "coffee_factor": 0.8,
   "shop": [
     { "id": "coffee", "name": "Coffee", "price": 150, "text": "Next hour the belt runs 20% slower and trays come 20% less often." },
     { "id": "mate", "name": "Mate's Help", "price": 250, "text": "Your mate covers your next strike. Lasts until used." },
-    { "id": "earplugs", "name": "Earplugs", "price": 100, "text": "Next hour you can't hear the PA, so it can't distract you." }
+    { "id": "earplugs", "name": "Earplugs", "price": 100, "text": "Next hour you can't hear the PA, so it can't distract you." },
+    { "id": "double", "name": "Double or Nothing", "price": 300, "text": "Bet on your next hour. No strikes: you win $300. One strike: it's gone." },
+    { "id": "slots", "name": "Chicken Slots", "price": 50, "text": "One spin, right now. Any pair pays $40. Three of a kind pays up to $5000." }
   ],
+  "slots": {
+    "weights": { "wing": 40, "drumstick": 30, "nugget": 25, "stranger": 5 },
+    "pair": 40,
+    "three": { "wing": 100, "drumstick": 200, "nugget": 400, "stranger": 5000 }
+  },
   "pa": {
     "from_hour": 2,
     "every": [6, 11],

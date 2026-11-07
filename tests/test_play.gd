@@ -13,7 +13,7 @@ extends SceneTree
 
 const FPS := 60
 const LIMIT := 12 * 80 * FPS  # hard stop: a broken run fails instead of hanging
-const SHOP_PLAN := {1: ["coffee", 1], 2: ["mate", 2], 3: ["earplugs", -1]}  # after hour n: item, Right(+)/Left(-) presses from Skip
+const SHOP_PLAN := {1: ["coffee", 1], 2: ["mate", 2], 3: ["earplugs", -3], 4: ["double", -2], 5: ["slots", -1]}  # after hour n: item, Right(+)/Left(-) presses from Skip
 const RECORDS := "user://test_play_records.cfg"  # never the player's own record book
 
 var Main: Script  # loaded after autoloads exist, so main.gd can see Sfx
@@ -36,6 +36,8 @@ var strange_by_hour := {}  # hour -> strange trays seen on the belt
 var dark_by_hour := {}  # hour -> the lights went out
 var radio_seen := false
 var escape_popup_seen := false
+var spin_checked := false
+var spin_payout := 0
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
 var pause_checked := false
 var failures := 0
@@ -87,6 +89,8 @@ func _night() -> void:
 			if in_state == 2:
 				_check_hour_over()
 				_shop()
+		Main.State.SLOTS:
+			_slots()
 		Main.State.WIN:
 			if in_state == 2:
 				_check_hour_over()
@@ -97,8 +101,13 @@ func _night() -> void:
 				check(bonuses == cfg.hours.size(), "no strikes all night: a clean-hour bonus every hour")
 				var spent := 0
 				for item: Dictionary in cfg.shop:
-					spent += int(item.price)
-				check(s.spent == spent and s.wallet() == s.pay - spent, "bought all three items: $%d spent" % spent)
+					if item.id != "double" and item.id != "slots":
+						spent += int(item.price)
+				check(s.spent == spent and s.wallet() == s.pay - spent + s.winnings, "bought all three items: $%d spent" % spent)
+				var stake: int = s.shop_item("double").price
+				var spin: int = s.shop_item("slots").price
+				check(s.winnings == stake - spin + spin_payout, "the bet won and the slots paid $%d: %+d on the night" % [spin_payout, s.winnings])
+				check(["Bets and slots", "%s$%d" % ["+" if s.winnings >= 0 else "-", absi(s.winnings)]] in main.ending.slip, "the payslip has a line for bets and slots")
 				check(s.estops_left == int(cfg.estops) - 1, "exactly one emergency stop used")
 				var strange := 0
 				for h in strange_by_hour:
@@ -292,11 +301,45 @@ func _shop() -> void:
 		check(main.shop.items[main.shop.selected].id == plan[0], "Shifts move the selection to %s" % plan[0])
 		var before := s.wallet()
 		_key(KEY_ENTER)
-		check(main.state == Main.State.PLAYING and s.wallet() == before - int(s.shop_item(plan[0]).price), "Enter buys %s and starts the next hour" % plan[0])
+		if plan[0] == "slots":
+			check(main.state == Main.State.SLOTS and main.slots.visible and not main.shop.visible, "Enter on the slots spins them")
+		else:
+			check(main.state == Main.State.PLAYING and s.wallet() == before - int(s.shop_item(plan[0]).price), "Enter buys %s and starts the next hour" % plan[0])
+		if plan[0] == "double":
+			check(s.bet == s.shop_item("double").price and ("BET $%d" % s.bet) in main.stats.text, "the bet is on, and the HUD says so")
 	else:
 		var before := s.wallet()
 		_key(KEY_ENTER)
 		check(main.state == Main.State.PLAYING and s.wallet() == before, "Enter on Skip spends nothing")
+
+
+## Chicken Slots: the reels spin until stopped, Enter can't skip them, and three Shift presses land the result.
+func _slots() -> void:
+	var s: ShiftState = main.logic
+	if in_state == 2:
+		check(not _music(), "the slots: no music")
+		_key(KEY_ENTER)
+		check(main.state == Main.State.SLOTS, "Enter can't skip the reels")
+		frozen = {"pos": main.slots._pos.duplicate()}
+	elif in_state == 20:
+		check(main.slots._pos[0] != frozen.pos[0] and not main.slots.done, "the reels spin until you stop them")
+		frozen = {}
+	elif in_state in [30, 40, 50]:
+		_key(KEY_SHIFT, KEY_LOCATION_LEFT if in_state == 40 else KEY_LOCATION_RIGHT)
+	elif in_state > 50 and main.slots.done and not spin_checked:
+		spin_checked = true
+		var r: Array = s.last_spin.reels
+		spin_payout = s.last_spin.payout
+		for i in 3:
+			var strip: Array = main.slots._strips[i]
+			check(strip[int(main.slots._pos[i]) % strip.size()] == r[i], "reel %d lands on the symbol that was drawn (%s)" % [i + 1, r[i]])
+		check(main.slots.wallet == s.wallet(), "the wallet on screen includes the payout")
+		print("slots: %s pays $%d" % [r, spin_payout])
+		_key(KEY_ENTER)
+		check(main.state == Main.State.PLAYING and s.hour == hours_done, "once they land, Enter starts the next hour")
+	elif in_state > 60 * 20:
+		check(false, "the reels never landed")
+		_finish()
 
 
 # --- run 2: a player who does nothing (and one late press) ----------------

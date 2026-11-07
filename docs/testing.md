@@ -16,7 +16,7 @@ godot --headless --path . --fixed-fps 60 -s tests/test_play.gd
 `godot` is your Godot 4.7 binary (on Windows, the `_console.exe` build shows the output). `--fixed-fps 60` makes the
 play test run a whole 4-minute night in about five seconds, frame for frame the same as real time.
 
-## tests/test_logic.gd: the rules (209 checks)
+## tests/test_logic.gd: the rules (283 checks)
 
 Drives `ShiftState` directly. No scene, no timing.
 
@@ -31,7 +31,8 @@ Drives `ShiftState` directly. No scene, no timing.
 | Belt per hour | Each hour starts at its first speed and interval, rises linearly, stops at its second value; the next hour starts at its own speed. |
 | Supervisor notes | Replays every note in order: 10 PM changes nothing; nuggets move right; red stamps go straight and beat the kind; tenders appear; the 2 AM swap moves every left/right rule but not straight, and marks exactly what moved; by 5 AM red is cancelled, blue goes left and wings go straight. Notes never change the data a new night starts from. |
 | Hour tally | A clean hour earns the bonus and the tally names the hour; no bonus after a strike or with nothing sorted. |
-| Spawning | Before any stamp rule there are only the three kinds and no stamps. With a stamp rule about `stamp_chance` of trays are stamped. A kind added by a note starts spawning. |
+| Spawning | Before any stamp rule there are only the three kinds and no stamps. Over 2,000 trays in each of the eight hours, with strange trays kept coming: never three in a row to one exit; from 12 AM never two, with all three exits in play; every open exit gets a fair share. A bin only a stamp goes to gets its share. A kind added by a note starts spawning. The gap between trays stays within `interval_jitter` and really varies. |
+| Gambling | A bet needs the money and comes off the wallet, not `spent`. A clean hour wins it; a strike, or nothing sorted, loses it; a strike the mate covers doesn't. 20,000 spins: every result pays what the table says, each symbol comes up as often as its weight says, and the measured payback matches the table. |
 | Shop | Can't buy with an empty wallet, and a refused purchase changes nothing. Buying takes the price off the wallet, not off what you earned. Unknown items can't be bought. One dollar short is still too short. |
 | Items | Coffee slows the belt and spaces trays by the same factor (gap unchanged) and lasts one hour. Mate's Help covers a wrong tray (no strike, combo still breaks, no pay), only once, lasts across hours until used, and covers a missed tray too (which still falls). |
 | PA | None before `pa.from_hour`; from then the PA interrupts within the note time plus `every` max, keeps interrupting through the hour, each lasting `pa.seconds`. Earplugs: no PA all hour; they last one hour. |
@@ -41,9 +42,9 @@ Drives `ShiftState` directly. No scene, no timing.
 | Ledger | Starts empty; every `end_hour()` appends its tally in order, with its strikes, pay and bonus. |
 | Records | The first night to 6 AM beats every record; take-home is pay minus spending; accuracy is kept as a fraction. The same night again beats nothing but counts. A night sent home can only beat the combo, never the pay. The NEW BEST wording. Records and mute survive a save and load; no file means blank records with sound on. |
 | Tray path | `Tray.advance` follows a leg, carries leftover distance round a corner, stops at the end; a missed tray tumbles. |
-| Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray and at least 0.4 s to react to a tray coming out from under the PA; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the three known items with names, text and prices; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. The strange night starts after the PA; strange trays are rare but at least one an hour; radio lines mix with the PA and hint at STRAIGHT and DOCK; flicker windows fit the cycle, keep the lights on most of the time and never start more than 2 flashes in a second (photosensitivity); strange trays have art and no rule; both endings have a title and text. |
+| Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray even at the shortest gap and at least 0.4 s to react to a tray coming out from under the PA; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the five known items with names, text and prices; `no_repeat_from` and `interval_jitter` are sensible; every slot symbol has art, a payout and a weight that fits the strip; the slots pay back 80% to 100% and a pair gives back less than a spin costs; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. The strange night starts after the PA; strange trays are rare but at least one an hour; radio lines mix with the PA and hint at STRAIGHT and DOCK; flicker windows fit the cycle, keep the lights on most of the time and never start more than 2 flashes in a second (photosensitivity); strange trays have art and no rule; both endings have a title and text. |
 
-## tests/test_play.gd: the real game (196 checks)
+## tests/test_play.gd: the real game (209 checks)
 
 It reads and writes `user://test_play_records.cfg`, never the player's own record book, and deletes it at the end.
 
@@ -72,6 +73,10 @@ tray straight on, which no rule says to do. Checks:
 - every hour ends with the belt cleared and the PA banner, hum and music off, straight into the break room (or the ending after 5 AM) with no screen to Enter past,
 - the break room opens on Skip and shows the hour's tally and your pay; an item you can't afford is refused and you stay in the shop;
   the Shifts move the selection; Enter buys and starts the next hour with the price taken off; Skip spends nothing,
+- after 2 AM the autoplayer bets on Double or Nothing: the HUD shows it, and the clean hour wins it,
+- after 3 AM it spins the slots: Enter can't skip the reels, they spin until stopped, three Shift presses land each one on the symbol
+  that was drawn, the wallet on screen includes the payout, and Enter starts the next hour,
+- the payslip has a Bets and slots line with the night's net result,
 - 11 PM runs slower (coffee); at 12 AM the coffee has worn off and the mate is standing by; the deliberate wrong
   tray is covered (no strike) with the mate's popup and a shake,
 - the PA banner interrupts at 12 AM, and at 1 AM the earplugs keep it quiet all hour,
@@ -148,6 +153,9 @@ Automated tests cannot judge feel. Before a release, play once and confirm:
 - [ ] Combo and multiplier rise; pay jumps by $20 on the 5th in a row; the combo survives into the next hour.
 - [ ] Both Shifts: STOPPED!, the belt and the clock freeze for about 2.5 s, E-STOPS goes down by one.
 - [ ] At 11:00 PM the break room opens on Skip, with the hour's tally and the bonus if clean on its heading.
+- [ ] From 12 AM no two trays in a row go to the same bin, and the gaps between trays feel uneven.
+- [ ] Double or Nothing: the HUD shows BET $300; the next break room says YOU WON or YOU LOST.
+- [ ] Chicken Slots: three Shift presses stop the reels, the last one drags on, ticks slow down and the result pays out.
 - [ ] In the break room the Shifts move the selection, Enter buys (ka-ching) and starts 11 PM with nuggets moved,
       marked `*` on the board. Coffee makes the belt visibly slower.
 - [ ] Popups and puffs on correct sorts, bigger popups at combo 5, 10, 15; shake and STRIKE! on wrong sorts.
