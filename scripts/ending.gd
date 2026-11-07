@@ -15,6 +15,7 @@ var text := ""
 var slip: Array = []  # payslip rows: [label, value]
 var ledger: Array = []  # ShiftState.ledger: one tally per hour
 var best := ""  # records beaten tonight, "" if none (#32)
+var touch := false  # tap wording (#44)
 var _since := 0.0  # seconds the ending has been up: drives the sunrise and the traffic
 
 
@@ -75,7 +76,7 @@ func _draw() -> void:
 	if not ledger.is_empty():
 		_draw_ledger(Rect2(662, 108, 270, 190))
 	if fmod(t, 1.0) < 0.7:
-		draw_string(font, Vector2(0, 528), "PRESS ENTER", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, Color.WHITE)
+		draw_string(font, Vector2(0, 528), "TAP" if touch else "PRESS ENTER", HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, Color.WHITE)
 
 
 ## One bar per hour, its height the hour's pay plus bonus; amber with a red X per strike, green if clean.

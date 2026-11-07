@@ -54,6 +54,7 @@ and you're sent home.
 | Right Shift | Playing | Toggle the right gate. Opening it closes the left gate. |
 | Both Shifts (within 0.15 s) | Playing | Emergency stop: the belt and the hour clock halt for 2.5 s. 3 per night. |
 | Left / Right Shift | Break-room shop | Move the selection left / right. |
+| Tap | Everywhere | On a touchscreen, taps do all of this instead (section 23.9). |
 | Enter / Space | Title, shop, game over, win | Continue; in the shop, buy the selected item (or skip). |
 | Anything else | Any | Ignored. |
 
@@ -979,3 +980,69 @@ the jackpot gets the biggest of each.
 **What stays honest.** The result is picked before the reels stop, so when you press changes nothing. Each strip holds the
 symbols in the same proportions as the real odds, one place per 5 of weight. Near misses are not forced: a pair and a
 miss happen at the rate the odds say.
+
+### 23.9 Touchscreens (#44)
+
+Phones and tablets play the same web build, from the same itch.io link.
+
+| Keyboard | Touch |
+|---|---|
+| Left Shift | Tap the left half of the screen |
+| Right Shift | Tap the right half |
+| Both Shifts | Two fingers, one on each side, within the same 0.15 s window |
+| Enter on the title, game over or win | Tap anywhere |
+| Shifts and Enter in the break room | Tap a card to choose it, tap it again to buy |
+| Shift on the slots | Tap to stop the next reel, tap to go on once they land |
+| Esc | The II button, bottom left |
+| M, Q on the pause card | The Sound and Quit buttons |
+
+**Touch or keyboard? Nobody has to choose.** There is no reliable way to know what is plugged in: a browser can't list a
+keyboard, and a touchscreen laptop has both. So both always work, and only the wording and text size depend on `touch`:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Keyboard: desktop
+    [*] --> Touch: Android or iOS browser
+    Keyboard --> Touch: any tap
+    Touch --> Keyboard: any key
+```
+
+- **The starting guess** is `OS.has_feature("web_android")`, `web_ios` or `mobile`, so a phone shows TAP TO CLOCK IN before the first tap.
+- **From then on the last input wins.** A phone with a Bluetooth keyboard and a laptop with a touchscreen both just work.
+- **Touch mode** shows tap wording, hides the Sticky Keys bar, and uses larger text for the HUD, the rules board, the bin labels and the
+  cards. It shows the II button on the line.
+
+**Reading the tap.** `main.gd` reads `InputEventScreenTouch` in `_input`, ahead of the screens drawn over the line, so
+the note card or the PA banner can't swallow one. The tap goes through the same `press_shift()` as a Shift key, so the
+gate swing, the emergency stop and the scoring have no touch code at all. Only the pause buttons take a tap for themselves.
+
+**Frantic tapping.** A player tapping hard when an hour ends shouldn't buy something by accident or skip the result of a
+spin. For `TAP_GUARD` (0.5 s) after a screen opens, and after the reels land, a tap does nothing there. It doesn't apply
+on the line, or to keys.
+
+**Sideways only.** Held upright, a phone gets "Turn your phone sideways", and a shift in progress pauses behind it.
+
+**Not done.** The belt runs at the same speed as on a keyboard, and fingers cover part of the screen. Add touch speeds if
+playing on a real phone shows they are needed.
+
+### 23.10 Keyboard focus on a web page (#46)
+
+On a web page the keys only reach the game while its canvas has focus. itch.io hosts the game in an iframe from another
+site, so focus is easy to lose: the page can load without it, and any click on the page text takes it. Keys then go to the
+page, with no sign why. `APPLICATION_FOCUS_OUT` doesn't fire when focus moves within the page, so a shift ran on unseen.
+
+Every `FOCUS_CHECK` (0.25 s) on the web, `main.gd` asks the page whether the canvas has focus:
+
+```mermaid
+stateDiagram-v2
+    HasKeyboard --> Lost: click elsewhere on the page, or the page loads without focus
+    Lost --> HasKeyboard: click the game
+    Lost --> Lost: amber message, CLICK HERE TO CLOCK IN on the title, a shift pauses
+```
+
+- **Say so:** an amber bar across the top says to click the game, and the title says CLICK HERE TO CLOCK IN.
+- **Pause:** a shift in progress pauses as focus goes. Coming back doesn't resume it by itself, so nobody is caught out.
+- **A click works:** a mouse click does what a tap does on every screen but the line (section 23.9), so the click that brings
+  focus back also starts the game or goes on. On the pause card it resumes. On the line the gates stay on the keys.
+- **Enter resumes** from the pause card, as well as Esc and P.
+- **Touch mode skips the check:** taps don't need focus, and a phone may never focus the canvas.

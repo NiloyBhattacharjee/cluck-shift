@@ -1,5 +1,5 @@
 extends Node2D
-## Scene glue: game state machine, Shift input, spawning and moving trays, HUD, shop, juice,
+## Scene glue: game state machine, Shift and touch input, spawning and moving trays, HUD, shop, juice,
 ## the pause menu and the record book.
 ## The rules themselves live in ShiftState (scripts/shift_state.gd).
 
@@ -14,12 +14,19 @@ const RADIO_COLOUR := Color(0.12, 0.3, 0.16, 0.97)  # the PA banner when it pick
 const SKIP := {"id": "skip", "name": "Skip", "price": 0, "text": "Keep your pay. Straight back to the line."}
 const POPUP_AT := Belt.FORK + Vector2(0, -70)
 const MUSIC_STEP := 0.03  # the music plays this much faster every hour (#34)
+const TAP_GUARD := 0.5  # seconds after a screen opens when a tap does nothing, so a frantic tap can't buy or skip it
+const FOCUS_CHECK := 0.25  # seconds between checks that the web page still has the game's keyboard (#46)
+const CANVAS_HAS_KEYS := "document.hasFocus() && document.activeElement === document.querySelector('canvas')"
 
 var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
 var state := State.MENU
 var logic := ShiftState.new(cfg)
 var _pa_seen := 0  # logic.pa_count when the banner last updated
 var backup_keys := false  # Z and / stand in for the Shifts; see _side()
+var touch := false  # the latest input was a tap: shows tap wording and larger text (#44)
+var _tap_wait := 0.0  # seconds left of TAP_GUARD
+var has_keyboard := true  # false on the web once a click elsewhere on the page has taken the keys (#46)
+var _focus_wait := 0.0  # seconds until the next check of has_keyboard
 var lights_out := false  # the flicker as last shown
 var _pa_colour: Color
 var paused := false  # Esc / P during a shift (#31)
@@ -40,6 +47,11 @@ var records: Dictionary  # the record book and the mute setting (#32)
 @onready var message: Label = $HUD/Dim/Message
 @onready var shop: Control = $HUD/Shop
 @onready var slots: Control = $HUD/Slots
+@onready var pause_button: Button = $HUD/PauseButton
+@onready var pause_menu: Control = $HUD/PauseMenu
+@onready var sound_button: Button = $HUD/PauseMenu/Sound
+@onready var rotate_card: Control = $HUD/RotateCard
+@onready var focus_hint: Control = $HUD/FocusHint
 @onready var title: Control = $HUD/Title
 @onready var ending: Control = $HUD/Ending
 
@@ -55,7 +67,33 @@ func _ready() -> void:
 	records = Records.load_file(records_path)
 	AudioServer.set_bus_mute(0, records.muted)
 	title.records = records
+	pause_button.pressed.connect(_set_paused.bind(true))
+	$HUD/PauseMenu/Back.pressed.connect(_set_paused.bind(false))
+	sound_button.pressed.connect(_toggle_mute)
+	$HUD/PauseMenu/Quit.pressed.connect(_enter.bind(State.MENU))
+	get_window().size_changed.connect(_check_rotation)
 	_enter(State.MENU)
+	_set_touch(OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile"))
+
+
+func _process(delta: float) -> void:
+	_tap_wait = maxf(_tap_wait - delta, 0.0)
+	_focus_wait -= delta
+	if _focus_wait <= 0.0 and OS.has_feature("web"):
+		_focus_wait = FOCUS_CHECK
+		_set_keyboard(touch or JavaScriptBridge.eval(CANVAS_HAS_KEYS, true))
+
+
+## On a web page the keys only reach the game while it has focus, and any click elsewhere on the page
+## takes it. Keys then go nowhere with no sign why, so say so, and pause a shift rather than run on (#46).
+func _set_keyboard(on: bool) -> void:
+	if has_keyboard == on:
+		return
+	has_keyboard = on
+	title.has_keyboard = on
+	focus_hint.visible = not on
+	if not on and state == State.PLAYING and not paused:
+		_set_paused(true)
 
 
 # --- state machine ---------------------------------------------------------
@@ -63,6 +101,7 @@ func _ready() -> void:
 func _enter(new_state: State) -> void:
 	state = new_state
 	paused = false
+	_tap_wait = TAP_GUARD
 	if state != State.PLAYING:
 		_set_loops(false)
 		spawn_timer.stop()
@@ -92,10 +131,10 @@ func _enter(new_state: State) -> void:
 		State.GAME_OVER:
 			juice.shake(1.0)
 			var beaten := _record_night(false)
-			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d%s\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\nPress Enter to clock in again"
+			_show("SENT HOME at %s!\n\nEarned: $%d    Spent: $%d%s\nTrays sorted: %d\nAccuracy: %d%%\nBest combo: %d\n%s\n%s to clock in again"
 				% [logic.clock_text(), logic.pay, logic.spent, "    Bets: %s" % _signed(logic.winnings) if logic.winnings != 0 else "",
 				logic.sorted_total, roundi(logic.accuracy() * 100), logic.best_combo,
-				"NEW BEST: %s\n" % beaten if beaten != "" else ""])
+				"NEW BEST: %s\n" % beaten if beaten != "" else "", "Tap" if touch else "Press Enter"])
 		State.WIN:
 			var which := logic.ending()
 			Sfx.play("clock_in")
@@ -111,6 +150,7 @@ func _enter(new_state: State) -> void:
 			ending.show_ending(which == "secret", cfg.endings[which], rows, logic.ledger, _record_night(true))
 	_refresh_rules()
 	_update_hud()
+	_update_touch_ui()
 
 
 func _signed(amount: int) -> String:
@@ -147,11 +187,48 @@ func _set_paused(on: bool) -> void:
 		note_card.hide()
 		pa_banner.hide()
 	_show_pause()
+	_update_touch_ui()
 
 
 func _show_pause() -> void:
-	_show("PAUSED\n\nEsc / P    back to work\nM    sound: %s\nQ    quit to the title (this night won't count)"
+	if touch and paused:
+		_show("PAUSED\n\n\n\n\n\n\n\n")  # the buttons of PauseMenu sit under it
+		return
+	_show("PAUSED\n\nEnter / Esc / P / click    back to work\nM    sound: %s\nQ    quit to the title (this night won't count)"
 		% ("OFF" if records.muted else "ON") if paused else "")
+
+
+## Touch wording and larger text, or keyboard wording. Whichever input came last wins, so a phone,
+## a keyboard, a touchscreen laptop and a phone with a Bluetooth keyboard all just work (#44).
+func _set_touch(on: bool) -> void:
+	if touch == on:
+		return
+	touch = on
+	for view: CanvasItem in [title, shop, slots, ending, belt]:
+		view.touch = on
+		view.queue_redraw()
+	stats.add_theme_font_size_override("font_size", 22 if on else 18)
+	rules.add_theme_font_size_override("font_size", 19 if on else 15)
+	if paused:
+		_show_pause()
+	if state == State.GAME_OVER:  # say the right thing if the player changes their mind on this screen
+		message.text = message.text.replace("Press Enter to", "Tap to") if on else message.text.replace("Tap to", "Press Enter to")
+	_update_touch_ui()
+	_check_rotation()
+
+
+func _update_touch_ui() -> void:
+	pause_button.visible = touch and state == State.PLAYING and not paused
+	pause_menu.visible = touch and paused
+	sound_button.text = "Sound: %s" % ("OFF" if records.muted else "ON")
+
+
+## The game is landscape only: held upright, a phone gets a message, and the shift pauses behind it.
+func _check_rotation() -> void:
+	var window := get_window().size
+	rotate_card.visible = touch and window.y > window.x
+	if rotate_card.visible and state == State.PLAYING and not paused:
+		_set_paused(true)
 
 
 ## M on the title or the pause menu. Mutes the master bus and remembers it.
@@ -160,6 +237,7 @@ func _toggle_mute() -> void:
 	AudioServer.set_bus_mute(0, records.muted)
 	Records.save_file(records, records_path)
 	_show_pause()
+	_update_touch_ui()
 
 
 ## Folds the finished night into the record book and saves it. Returns what it beat, for a NEW BEST line.
@@ -184,14 +262,67 @@ func _on_hour_over() -> void:
 		_enter(State.WIN if logic.is_last_hour() else State.SHOP)
 
 
+## Taps are read here, ahead of the screens drawn over the line. Only the pause buttons take a tap for themselves.
+## A mouse click does what a tap does on every screen but the line, where the gates stay on the keys.
+func _input(event: InputEvent) -> void:
+	var click := event as InputEventMouseButton
+	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and click.device != InputEvent.DEVICE_ID_EMULATION:
+		if rotate_card.visible or touch:
+			return
+		if state == State.PLAYING:
+			if paused:
+				_set_paused(false)
+		else:
+			_on_tap(click.position)
+		return
+	var tap := event as InputEventScreenTouch
+	if tap == null or not tap.pressed:
+		return
+	_set_touch(true)
+	if rotate_card.visible:
+		get_viewport().set_input_as_handled()
+		return
+	if paused or (pause_button.visible and pause_button.get_global_rect().has_point(tap.position)):
+		return
+	get_viewport().set_input_as_handled()
+	_on_tap(tap.position)
+
+
+func _on_tap(at: Vector2) -> void:
+	match state:
+		State.PLAYING:
+			_on_shift("left" if at.x < Belt.FORK.x else "right")
+		State.SLOTS:
+			if not slots.done:
+				slots.stop_next()
+			elif _tap_wait == 0.0 and slots.since_done() >= TAP_GUARD:
+				_confirm()
+		State.SHOP:
+			var card: int = shop.card_at(at)
+			if _tap_wait > 0.0 or card < 0:
+				return
+			if card == shop.selected:
+				_checkout()
+			else:
+				shop.selected = card
+				Sfx.play("select")
+				_refresh_shop()
+		_:
+			if _tap_wait == 0.0:
+				_confirm()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
+	_set_touch(false)
 	var side := _side(key)
 	if state == State.PLAYING:
 		if key.keycode in [KEY_ESCAPE, KEY_P]:
 			_set_paused(not paused)
+		elif paused and key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			_set_paused(false)
 		elif paused and key.keycode == KEY_M:
 			_toggle_mute()
 		elif paused and key.keycode == KEY_Q:
@@ -211,19 +342,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		_refresh_shop()
 		return
 	if key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
-		match state:
-			State.MENU:
+		_confirm()
+
+
+## Enter, or a tap: go on from whatever screen this is.
+func _confirm() -> void:
+	match state:
+		State.MENU:
+			_enter(State.PLAYING)
+		State.SHOP:
+			_checkout()
+		State.SLOTS:
+			if slots.done:
 				_enter(State.PLAYING)
-			State.SHOP:
-				_checkout()
-			State.SLOTS:
-				if slots.done:
-					_enter(State.PLAYING)
-			State.GAME_OVER:  # one key to try again
-				_enter(State.MENU)
-				_enter(State.PLAYING)
-			State.WIN:
-				_enter(State.MENU)
+		State.GAME_OVER:  # one key to try again
+			_enter(State.MENU)
+			_enter(State.PLAYING)
+		State.WIN:
+			_enter(State.MENU)
 
 
 ## Which gate a key works: "left", "right" or "" (not a gate key). Some setups (remote desktop,

@@ -15,6 +15,7 @@ var scroll := 0.0  # belt travel, animates the stripes
 var route := "center"
 var labels := {}  # route -> Array of lines naming what goes in that bin, filled from the rules
 var swinging := false  # gate still moving: both gate boxes flash
+var touch := false  # tap wording and larger bin labels (#44)
 
 
 func _draw() -> void:
@@ -36,7 +37,7 @@ func _draw() -> void:
 	# fork hub, direction arrow and the two gates
 	draw_circle(FORK, 30, Color("263238"))
 	draw_line(FORK, FORK + (EXITS[route] - FORK).normalized() * 28, LIT, 8)
-	for g in [["left", Vector2(-120, -40), "L-SHIFT"], ["right", Vector2(60, -40), "R-SHIFT"]]:
+	for g in [["left", Vector2(-120, -40), "LEFT" if touch else "L-SHIFT"], ["right", Vector2(60, -40), "RIGHT" if touch else "R-SHIFT"]]:
 		var box := Rect2(FORK + g[1], Vector2(60, 28))
 		draw_rect(box, Color("ff7043") if swinging else (LIT if route == g[0] else DARK))
 		draw_string(font, box.position + Vector2(0, 19), g[2], HORIZONTAL_ALIGNMENT_CENTER, 60, 12, Color.BLACK if route == g[0] else Color.WHITE)
@@ -49,6 +50,6 @@ func _draw() -> void:
 		if lines.is_empty():
 			lines = ["(empty)"]
 		for i in lines.size():
-			draw_string(font, bin.position + Vector2(0, 18 + i * 16 + (3 - lines.size()) * 8), lines[i], HORIZONTAL_ALIGNMENT_CENTER, 150, 13)
+			draw_string(font, bin.position + Vector2(0, 18 + i * 16 + (3 - lines.size()) * 8), lines[i], HORIZONTAL_ALIGNMENT_CENTER, 150, 16 if touch else 13)
 	# straight on is the loading dock: the radio's hint points here
 	draw_string(font, EXITS.center + Vector2(-75, 57), "TO LOADING DOCK", HORIZONTAL_ALIGNMENT_CENTER, 150, 11, Color("90a4ae"))
