@@ -5,6 +5,14 @@ All notable changes to Cluck Shift are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Fast pacing.** A night is about 4 minutes instead of 10: hours last 30 s, not 75, so a new rule lands every 30 s.
+  The belt starts at 160 px/s, not 100, and trays reach one every 0.72 s by 5 AM, not 0.9 s.
+- The gate swings in 0.08 s, not 0.12 s. PA announcements are shorter and more frequent. Trays are strange 10% of the
+  time, not 6%, to make up for shorter hours.
+- The tally screen is gone: the hour's tally is on the break-room heading, so there is one Enter between hours. One
+  Enter after being sent home starts a new night.
+
 ### Added
 - **Phase 5: polish around the same loop.** Esc or P pauses mid-shift: the belt, clock, PA, flicker and timers all
   stop, and Q quits to the title. Losing window focus pauses too (#31).

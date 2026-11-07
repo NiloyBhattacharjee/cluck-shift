@@ -26,8 +26,8 @@ cluck_shift/
 │   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip, ledger chart), drawn with shapes
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
-│   ├── test_logic.gd      # 201 checks on ShiftState, Records, Tray.advance and rules.json
-│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (188 checks)
+│   ├── test_logic.gd      # 209 checks on ShiftState, Records, Tray.advance and rules.json
+│   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (196 checks)
 └── docs/                  # this folder
 ```
 
@@ -44,7 +44,7 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
 ├── Fork (Area2D)                         the commit zone; area_entered -> main._on_tray_at_fork
 │   └── Shape (CollisionShape2D)          80 x 20 rectangle, placed at Belt.FORK + (0, -25) in _ready
 ├── SpawnTimer (Timer)                    one-shot; first start after note_seconds, then logic.interval
-├── HourTimer (Timer)                     one-shot, hour_seconds; timeout -> HOUR_END; paused during e-stops
+├── HourTimer (Timer)                     one-shot, hour_seconds; timeout -> SHOP or WIN; paused during e-stops
 └── HUD (CanvasLayer)
     ├── Stats (Label)                     pay, combo, strikes, e-stops, belt speed
     ├── Rules (Label)                     "SUPERVISOR SAYS" board, rebuilt from the current rules each hour
@@ -53,7 +53,7 @@ Main (Node2D)                 main.gd     state machine, input, spawning, HUD te
     ├── PABanner (ColorRect)              PA announcement over the top of the belt (blue; green for radio clucks)
     │   └── Text (Label)
     ├── Hazard (ColorRect)                full-screen red tint, pulses during an emergency stop
-    ├── Dim (ColorRect)                   overlay for the hour tally / game over / pause card
+    ├── Dim (ColorRect)                   overlay for the game over and pause cards
     │   └── Message (Label)
     ├── Shop (Control)        shop_view.gd  the break room, visible only in SHOP
     ├── Title (Control)       title.gd      the title screen, visible only in MENU
@@ -116,7 +116,7 @@ The physics server then checks overlaps. When a tray's shape first overlaps the 
    green or red, and picks the sound, popup, shake and puff for `ok`, `wrong`, `missed` or `covered`,
 4. enters GAME_OVER if `logic.sent_home()`.
 
-When the `HourTimer` times out, `_on_hour_over` enters HOUR_END, which clears the belt and calls `logic.end_hour()`.
+When the `HourTimer` times out, `_on_hour_over` clears the belt, calls `logic.end_hour()` and enters SHOP (or WIN after 5 AM).
 
 Collision setup: trays have `monitoring = false` (they never look for anything) and stay `monitorable`. The Fork has
 `monitorable = false` and stays `monitoring`. Both are on the default layer and mask 1.
@@ -129,8 +129,8 @@ Collision setup: trays have `monitoring = false` (they never look for anything) 
 - In PLAYING, Esc or P toggles `paused` (#31). While paused, M toggles mute, Q quits to MENU, and Shift is ignored.
 - In MENU, M toggles mute.
 - In SHOP, Left / Right Shift move `shop.selected` (wrapping).
-- Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING, HOUR_END to SHOP (or WIN after 5 AM),
-  SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER and WIN to MENU.
+- Outside PLAYING, Enter, keypad Enter and Space continue: MENU to PLAYING,
+  SHOP to `_checkout()` (buy or skip, then PLAYING; refused if too expensive), GAME_OVER to a new night in PLAYING, WIN to MENU.
   Everything else is ignored.
 - In PLAYING and SHOP, `_side(event)` names the gate: Shift with `KEY_LOCATION_LEFT` / `KEY_LOCATION_RIGHT`. A Shift
   with no location (some remote desktops and browsers) moves nothing and sets `backup_keys`; from then on Z is left

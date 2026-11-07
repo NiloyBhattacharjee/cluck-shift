@@ -54,7 +54,7 @@ and you're sent home.
 | Right Shift | Playing | Toggle the right gate. Opening it closes the left gate. |
 | Both Shifts (within 0.15 s) | Playing | Emergency stop: the belt and the hour clock halt for 2.5 s. 3 per night. |
 | Left / Right Shift | Break-room shop | Move the selection left / right. |
-| Enter / Space | Title, hour tally, shop, game over, win | Continue; in the shop, buy the selected item (or skip). |
+| Enter / Space | Title, shop, game over, win | Continue; in the shop, buy the selected item (or skip). |
 | Anything else | Any | Ignored. |
 
 Only key-down events count. Key repeat (echo) is ignored, so holding a Shift is one press. Left and right are told
@@ -88,7 +88,7 @@ The viewport is 960 x 540 and scales with the window (`stretch/mode = canvas_ite
      left bin (190,460)      centre bin (480,480)     right bin (770,460)
 ```
 
-From 12 AM a blue **PA banner** sometimes covers the top of the belt (x 290 to 670, y 28 to 118) for 3.5 s, hiding
+From 12 AM a blue **PA banner** sometimes covers the top of the belt (x 290 to 670, y 28 to 118) for 2.5 s, hiding
 incoming trays until they are past it. While the belt is emergency-stopped the whole screen pulses red.
 
 The open route is drawn in yellow: its gate box, chute outline, bin outline and the arrow on the fork hub. While a
@@ -108,7 +108,7 @@ flowchart TD
     A[Tray spawns at top of belt] --> B[Read the tray: kind, and stamp if any]
     B --> C[Recall the current rule:<br/>stamp rule first, else kind rule]
     C --> D{Gate already set<br/>to that exit?}
-    D -- no --> E[Press Left or Right Shift<br/>early: the gate takes 0.12 s to swing]
+    D -- no --> E[Press Left or Right Shift<br/>early: the gate takes 0.08 s to swing]
     E --> D
     D -- yes --> F[Tray touches the red line:<br/>route is locked]
     F --> G{Gate still swinging?}
@@ -167,12 +167,12 @@ safe to read as an emergency stop.
 
 ### 7.3 Gate swing and missed trays
 
-Every toggle starts the gate swinging for `swing_seconds` (0.12 s); both gate boxes flash orange while it swings. A
+Every toggle starts the gate swinging for `swing_seconds` (0.08 s); both gate boxes flash orange while it swings. A
 tray that reaches the red line while the gate is swinging is **missed**: it tumbles off the line to the floor and is a
 strike, whatever the gate was swinging towards.
 
 - This is the brief's "missed tray". A press made in good time never misses; a panicked last-frame press does.
-- 0.12 s is shorter than the both-Shifts window, so it never adds to the emergency stop's timing (tested).
+- 0.08 s is shorter than the both-Shifts window, so it never adds to the emergency stop's timing (tested).
 - The swing keeps running during an emergency stop, but nothing reaches the red line then.
 
 ## 8. Emergency stop
@@ -213,7 +213,7 @@ fresh.
 | Both again during a stop | Refused, no charge used, gate unchanged. |
 | Both with 0 charges left | Refused, buzz, gate unchanged. |
 | Holding a Shift | Echo events ignored, so it counts as one press. |
-| Shift on a tally, game over or win screen | Ignored. Only Enter or Space do anything. |
+| Shift on a game over or win screen | Ignored. Only Enter or Space do anything. |
 
 ## 9. Trays
 
@@ -304,11 +304,11 @@ pay stays $60, accuracy 5/6 = 83%. A perfect night is about 405 trays: $490 for 
 
 ### 11.1 Hours and clock
 
-Eight hours, 10 PM to 6 AM, each `hour_seconds` (75 s) of play. The HUD clock runs from `10:00 PM` to `5:59 AM`,
-one in-game minute per 1.25 s. The clock, the `HourTimer` and the belt ramp all stop during an emergency stop.
+Eight hours, 10 PM to 6 AM, each `hour_seconds` (30 s) of play, so a whole night is about four minutes. The HUD clock runs from `10:00 PM` to `5:59 AM`,
+one in-game minute per 0.5 s. The clock, the `HourTimer` and the belt ramp all stop during an emergency stop.
 
 Each hour starts the same way: the belt clears, the gates close, strikes reset, the supervisor's note applies and is
-shown on a sticky note for `note_seconds` (4 s), and the first tray spawns when the note goes away.
+shown on a sticky note for `note_seconds` (3 s), and the first tray spawns when the note goes away.
 
 ### 11.2 Belt per hour
 
@@ -322,27 +322,29 @@ interval(p) = lerp(interval[0], interval[1], p)    s between trays
 
 | Hour | Speed (px/s) | Seconds between trays | Gap between trays | Time from spawn to red line | Trays (approx.) |
 |---|---|---|---|---|---|
-| 10 PM | 100 to 150 | 2.6 to 2.0 | 260 to 300 px | 3.1 to 2.0 s | 31 |
-| 11 PM | 130 to 180 | 2.2 to 1.7 | 286 to 306 px | 2.4 to 1.7 s | 36 |
-| 12 AM | 150 to 200 | 1.9 to 1.5 | 285 to 300 px | 2.0 to 1.5 s | 42 |
-| 1 AM | 170 to 220 | 1.7 to 1.3 | 289 to 286 px | 1.8 to 1.4 s | 47 |
-| 2 AM | 190 to 240 | 1.5 to 1.2 | 285 to 288 px | 1.6 to 1.3 s | 53 |
-| 3 AM | 210 to 255 | 1.3 to 1.05 | 273 to 268 px | 1.5 to 1.2 s | 60 |
-| 4 AM | 225 to 270 | 1.15 to 0.95 | 259 to 257 px | 1.4 to 1.1 s | 68 |
-| 5 AM | 240 to 280 | 1.05 to 0.9 | 252 px | 1.3 to 1.1 s | 73 |
+| 10 PM | 160 to 200 | 1.6 to 1.25 | 256 to 250 px | 1.9 to 1.5 s | 19 |
+| 11 PM | 190 to 225 | 1.35 to 1.12 | 257 to 252 px | 1.6 to 1.4 s | 22 |
+| 12 AM | 215 to 250 | 1.18 to 1.0 | 254 to 250 px | 1.4 to 1.2 s | 25 |
+| 1 AM | 240 to 270 | 1.05 to 0.93 | 252 to 251 px | 1.3 to 1.1 s | 27 |
+| 2 AM | 260 to 290 | 0.97 to 0.87 | 252 px | 1.2 to 1.1 s | 29 |
+| 3 AM | 280 to 300 | 0.9 to 0.81 | 252 to 243 px | 1.1 to 1.0 s | 32 |
+| 4 AM | 295 to 310 | 0.84 to 0.77 | 248 to 239 px | 1.0 s | 34 |
+| 5 AM | 305 to 320 | 0.8 to 0.72 | 244 to 230 px | 1.0 s | 36 |
 
 ```mermaid
 xychart-beta
     title "Belt speed through the night (px/s, start and end of each hour)"
     x-axis ["10PM", "", "11PM", "", "12AM", "", "1AM", "", "2AM", "", "3AM", "", "4AM", "", "5AM", ""]
-    y-axis "px/s" 0 --> 300
-    line [100, 150, 130, 180, 150, 200, 170, 220, 190, 240, 210, 255, 225, 270, 240, 280]
+    y-axis "px/s" 0 --> 350
+    line [160, 200, 190, 225, 215, 250, 240, 270, 260, 290, 280, 300, 295, 310, 305, 320]
 ```
 
 - **Gap** is `speed x interval` when a tray spawns. All trays move at the same speed, so gaps never shrink after
   spawning, and every gap is far above the 36 px tray height (tested for every hour).
-- **Seconds between trays** is the decision budget per tray. It never drops below 0.9 s (tested: at least 0.6 s).
+- **Seconds between trays** is the decision budget per tray. It never drops below 0.72 s (tested: at least 0.6 s).
 - **Time from spawn to red line** is the 307 px from spawn to commit divided by speed: how long you can read a tray.
+- **The speed ceiling** is the PA banner. A tray coming out from under it (y 118) has `(277 - 118) / speed - swing_seconds`
+  to be read and routed. That is at least 0.4 s in every hour (tested), which is what caps 5 AM at 320 px/s.
 - Each hour starts a little slower than the last one ended, so a new rule arrives with a moment to adjust.
 
 ## 12. Supervisor notes
@@ -398,27 +400,25 @@ flowchart LR
 stateDiagram-v2
     [*] --> MENU: game opens
     MENU --> PLAYING: Enter / Space (new night, 10 PM)
-    PLAYING --> HOUR_END: HourTimer times out
+    PLAYING --> SHOP: HourTimer times out
+    PLAYING --> WIN: HourTimer times out after the 5 AM hour
     PLAYING --> GAME_OVER: 3 strikes this hour
-    HOUR_END --> SHOP: Enter
-    HOUR_END --> WIN: Enter after the 5 AM hour
     SHOP --> SHOP: Left / Right Shift (choose), Enter on an item you can't afford
     SHOP --> PLAYING: Enter (buy or skip; next hour)
-    GAME_OVER --> MENU: Enter
+    GAME_OVER --> PLAYING: Enter (new night, 10 PM)
     WIN --> MENU: Enter
 ```
 
 | State | On enter | Input | Per physics frame | Leaves when |
 |---|---|---|---|---|
 | MENU | New `ShiftState`, clear trays, show the title screen | Enter, Space | Nothing | Enter |
-| PLAYING | Next hour: clear belt, close gates, reset strikes, apply note, show note card, start `HourTimer` (75 s) and the first spawn after 4 s | Shifts | Tick clock and ramp, move trays, pause timers while stopped, hide the note after 4 s | Hour timer, or 3rd strike |
-| HOUR_END | Clear belt, `end_hour()` adds the clean bonus and uses up Coffee and Earplugs, show the tally, whistle | Enter, Space | Nothing | Enter |
-| SHOP | Show the vending machine on **Skip**, with your wallet and active items | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
-| GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter |
+| PLAYING | Next hour: clear belt, close gates, reset strikes, apply note, show note card, start `HourTimer` (30 s) and the first spawn after 3 s | Shifts | Tick clock and ramp, move trays, pause timers while stopped, hide the note after 3 s | Hour timer (clears the belt, `end_hour()` adds the clean bonus and uses up Coffee and Earplugs, whistle), or 3rd strike |
+| SHOP | Show the vending machine on **Skip**, with the hour's tally, your wallet and active items | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
+| GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter starts a new night at once |
 | WIN | Stop timers, pick the ending (`ShiftState.ending()`), show the dawn scene and the payslip: earned, spent, take-home pay, trays, accuracy, best combo, strange trays let through | Enter, Space | Nothing (the ending animates itself) | Enter |
 
 Esc or P pauses PLAYING without leaving it (section 23.1). The factory hum and the music loop only in PLAYING. The title shows only in MENU, the vending machine only in SHOP and the ending
-only in WIN. Leaving PLAYING turns the lights back on, so a flicker never carries into a tally.
+only in WIN. Leaving PLAYING turns the lights back on, so a flicker never carries into the break room.
 
 Every new night builds a brand-new `ShiftState` in MENU, so nothing from the last night can leak into the next one.
 
@@ -485,20 +485,20 @@ so the game has no audio files and no licences to track.
 | `routes` | rules.json | wing left, drumstick right, nugget center | Starting rules; the kinds listed spawn. |
 | `hours[i].speed` / `interval` | rules.json | see 11.2 | Belt range for each hour. |
 | `hours[i].note` | rules.json | see 12.2 | The supervisor note and its one rule change. |
-| `hour_seconds` | rules.json | 75 | Length of an hour. |
-| `note_seconds` | rules.json | 4 | How long the note shows before the first tray. |
+| `hour_seconds` | rules.json | 30 | Length of an hour. |
+| `note_seconds` | rules.json | 3 | How long the note shows before the first tray. |
 | `pay_per_tray` | rules.json | 10 | Base pay per correct tray. |
 | `clean_hour_bonus` | rules.json | 100 | Bonus for an hour with no strikes. |
 | `strikes_allowed` | rules.json | 3 | Strikes in one hour before you are sent home. |
 | `estops` / `estop_seconds` | rules.json | 3 / 2.5 | Emergency stops per night and their length. |
 | `stamp_chance` | rules.json | 0.3 | Share of trays stamped while a stamp rule exists. |
-| `swing_seconds` | rules.json | 0.12 | Gate swing time; a tray arriving mid-swing is missed. |
+| `swing_seconds` | rules.json | 0.08 | Gate swing time; a tray arriving mid-swing is missed. |
 | `shop` | rules.json | Coffee $150, Mate's Help $250, Earplugs $100 | Names, prices and descriptions of the three items. |
 | `coffee_factor` | rules.json | 0.8 | Coffee multiplies speed and divides interval by this. |
-| `pa.from_hour` / `every` / `seconds` | rules.json | 2 (12 AM) / 9 to 16 s / 3.5 s | When the PA starts, how often, how long. |
+| `pa.from_hour` / `every` / `seconds` | rules.json | 2 (12 AM) / 6 to 11 s / 2.5 s | When the PA starts, how often, how long. |
 | `pa.lines` | rules.json | 8 lines | What the PA says. |
 | `strange.from_hour` | rules.json | 4 (2 AM) | When the strange night starts. |
-| `strange.chance` / `max_per_hour` | rules.json | 0.06 / 4 | Chance a tray is strange, and the cap per hour. |
+| `strange.chance` / `max_per_hour` | rules.json | 0.1 / 4 | Chance a tray is strange, and the cap per hour. |
 | `strange.radio_chance` / `radio` | rules.json | 0.5 / 5 lines | Share of announcements that are radio clucks, and what they say. |
 | `strange.flicker` | rules.json | every 9 s, dark 0 to 0.2 and 0.45 to 1.2 | When the lights go out in each cycle. |
 | `endings` | rules.json | normal, secret | Title and line for each ending. |
@@ -524,7 +524,7 @@ Field reference: [data-format.md](data-format.md).
 
 ## 17. The break-room shop
 
-After each hour's tally (not after 5 AM) you go to the break room. One purchase, or skip.
+After each hour (not after 5 AM) you go straight to the break room, with the hour's tally on its heading. One purchase, or skip.
 
 | Item | Price | Effect | Lasts |
 |---|---|---|---|
@@ -541,7 +541,7 @@ After each hour's tally (not after 5 AM) you go to the break room. One purchase,
 
 ```mermaid
 flowchart LR
-    HE[HOUR_END tally] -->|Enter| SH[SHOP, on Skip]
+    HE[HourTimer times out] --> SH[SHOP, on Skip, tally on the heading]
     SH -->|Left / Right Shift| SH
     SH -->|Enter on Skip| P[PLAYING next hour]
     SH -->|Enter, affordable| B[buy: wallet - price<br/>effect armed, ka-ching] --> P
@@ -553,8 +553,8 @@ flowchart LR
 ## 18. PA announcements (distraction)
 
 From 12 AM (`pa.from_hour` = 2) the factory PA interrupts: a ding-dong, then a blue banner over the top of the belt for
-3.5 s with a silly announcement ("Please stop high-fiving the drumsticks."). The banner hides trays at the top of the
-belt, so you see them later than usual. The next announcement comes 9 to 16 s after the last one ends.
+2.5 s with a silly announcement ("Please stop high-fiving the drumsticks."). The banner hides trays at the top of the
+belt, so you see them later than usual. The next announcement comes 6 to 11 s after the last one ends.
 
 - The first one in an hour waits until after the supervisor's note.
 - It runs on the game clock, so an emergency stop does not stop it.
@@ -604,7 +604,7 @@ in it can get you sent home.
 
 ### 21.1 Strange trays
 
-**Spawning.** From 2 AM, each new tray is strange with probability `strange.chance` (0.06), until the hour has had
+**Spawning.** From 2 AM, each new tray is strange with probability `strange.chance` (0.1), until the hour has had
 `strange.max_per_hour` (4). The count resets every hour. Otherwise the tray is picked as before.
 
 ```
@@ -676,7 +676,7 @@ At 6 AM the WIN state asks `ShiftState.ending()`:
 
 ```mermaid
 flowchart TD
-    W[5 AM tally, Enter] --> Q{strange_seen > 0<br/>and escaped == strange_seen?}
+    W[5 AM hour ends] --> Q{strange_seen > 0<br/>and escaped == strange_seen?}
     Q -->|yes| S[THE GREAT ESCAPE<br/>trucks leave the loading dock at dawn,<br/>driven by chickens in sunglasses]
     Q -->|no| N[6 AM. YOU MADE IT!<br/>payslip in hand, the first bus home]
     S --> P[payslip: earned, break room, take-home,<br/>trays, accuracy, best combo,<br/>let through to the dock: e of s]
@@ -712,7 +712,7 @@ from `endings` in rules.json; the scenes are drawn in `scripts/ending.gd`.
 ## 22. Open questions
 
 1. Should the emergency stop be refunded if no tray was near the red line? (Prevents wasting it by accident.)
-2. Is 0.12 s of gate swing noticeable enough, or should missed trays get a bigger visual (a wobble on the gate)?
+2. Is 0.08 s of gate swing noticeable enough, or should missed trays get a bigger visual (a wobble on the gate)?
 3. Should the 2 AM swap get a longer note time? It reverses every habit at once.
 4. Are the shop prices right? A perfect player can afford everything; a struggling one earns roughly $300 to $800 an
    hour. Playtest whether Mate's Help at $250 is bought by the players who need it.
@@ -824,3 +824,41 @@ Earplugs only block the PA and radio; they don't touch the music. Mute does.
 A second export preset, **Windows Desktop**: x86_64, the game data embedded in the .exe, no console window. The
 result is a single `Cluck Shift.exe` (about 110 MB, almost all of it the Godot engine) to upload to itch.io next to
 the web build. See [releasing.md](releasing.md).
+
+### 23.6 Fast pacing
+
+A night used to be ten minutes of play and two Enter presses between every hour. It is now about four minutes, and a
+new rule lands every 30 seconds. Every number is in `rules.json`, so all of it can be retuned without touching code.
+
+| | Before | Now |
+|---|---|---|
+| Length of an hour | 75 s | 30 s |
+| A whole night, breaks aside | 10 min | 4 min |
+| Note before the first tray | 4 s | 3 s |
+| First hour's belt | 100 to 150 px/s | 160 to 200 px/s |
+| First hour's trays | one per 2.6 to 2.0 s | one per 1.6 to 1.25 s |
+| Last hour's belt | 240 to 280 px/s | 305 to 320 px/s |
+| Last hour's trays | one per 1.05 to 0.9 s | one per 0.8 to 0.72 s |
+| Gate swing | 0.12 s | 0.08 s |
+| PA | 3.5 s, every 9 to 16 s | 2.5 s, every 6 to 11 s |
+| Chance a tray is strange | 6% | 10% |
+| Enter presses between hours | 2 | 1 |
+| Enter presses to try again after being sent home | 2 | 1 |
+
+The PA hides about the same share of the night, in shorter bursts. Strange trays went from 6% to 10% because an hour
+now has about half as many trays, and the secret ending still needs them to turn up. Prices stay as they are: a clean
+first hour still pays about $590, more than enough for any item.
+
+```mermaid
+flowchart LR
+    P[PLAYING] -->|30 s| S[SHOP, tally on the heading]
+    S -->|Enter| P
+    P -->|5 AM hour ends| W[WIN]
+    P -->|3 strikes| G[GAME_OVER]
+    G -->|Enter| P
+    W -->|Enter| M[MENU]
+```
+
+The separate tally screen is gone, along with the HOUR_END state: the tally moved onto the break-room heading, and
+the whole night's hours are on the 6 AM ledger. To get back to the title from being sent home, press Enter, then Esc
+and Q; a night quit that way doesn't count.

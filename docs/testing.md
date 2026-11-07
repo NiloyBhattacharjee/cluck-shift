@@ -14,9 +14,9 @@ godot --headless --path . --fixed-fps 60 -s tests/test_play.gd
 ```
 
 `godot` is your Godot 4.7 binary (on Windows, the `_console.exe` build shows the output). `--fixed-fps 60` makes the
-play test run a whole 10-minute night in about five seconds, frame for frame the same as real time.
+play test run a whole 4-minute night in about five seconds, frame for frame the same as real time.
 
-## tests/test_logic.gd: the rules (201 checks)
+## tests/test_logic.gd: the rules (209 checks)
 
 Drives `ShiftState` directly. No scene, no timing.
 
@@ -41,9 +41,9 @@ Drives `ShiftState` directly. No scene, no timing.
 | Ledger | Starts empty; every `end_hour()` appends its tally in order, with its strikes, pay and bonus. |
 | Records | The first night to 6 AM beats every record; take-home is pay minus spending; accuracy is kept as a fraction. The same night again beats nothing but counts. A night sent home can only beat the combo, never the pay. The NEW BEST wording. Records and mute survive a save and load; no file means blank records with sound on. |
 | Tray path | `Tray.advance` follows a leg, carries leftover distance round a corner, stops at the end; a missed tray tumbles. |
-| Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the three known items with names, text and prices; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. The strange night starts after the PA; strange trays are rare but at least one an hour; radio lines mix with the PA and hint at STRAIGHT and DOCK; flicker windows fit the cycle, keep the lights on most of the time and never start more than 2 flashes in a second (photosensitivity); strange trays have art and no rule; both endings have a title and text. |
+| Data | 8 hours; each hour's belt speeds up, never overlaps trays, keeps at least 0.6 s per tray and at least 0.4 s to react to a tray coming out from under the PA; every note has text and changes exactly one rule (none at 10 PM) with real exits; every kind and stamp has art; `stamp_chance` and `swing_seconds` are sensible; the shop is exactly the three known items with names, text and prices; `coffee_factor` is sensible; PA announcements can't overlap and have enough lines. The strange night starts after the PA; strange trays are rare but at least one an hour; radio lines mix with the PA and hint at STRAIGHT and DOCK; flicker windows fit the cycle, keep the lights on most of the time and never start more than 2 flashes in a second (photosensitivity); strange trays have art and no rule; both endings have a title and text. |
 
-## tests/test_play.gd: the real game (188 checks)
+## tests/test_play.gd: the real game (196 checks)
 
 It reads and writes `user://test_play_records.cfg`, never the player's own record book, and deletes it at the end.
 
@@ -69,8 +69,8 @@ tray straight on, which no rule says to do. Checks:
 - straight after: Esc shows the PAUSED card and stops the hum and music; Shift moves no gate; M on the card mutes;
   for a second nothing moves (trays, game clock, hour timer) and both timers are paused; Esc goes back to work with
   the sound back,
-- every hour ends in a tally with the belt cleared and the PA banner, hum and music off; Enter goes to the break room,
-- the break room opens on Skip and shows your pay; an item you can't afford is refused and you stay in the shop;
+- every hour ends with the belt cleared and the PA banner, hum and music off, straight into the break room (or the ending after 5 AM) with no screen to Enter past,
+- the break room opens on Skip and shows the hour's tally and your pay; an item you can't afford is refused and you stay in the shop;
   the Shifts move the selection; Enter buys and starts the next hour with the price taken off; Skip spends nothing,
 - 11 PM runs slower (coffee); at 12 AM the coffee has worn off and the mate is standing by; the deliberate wrong
   tray is covered (no strike) with the mate's popup and a shake,
@@ -95,7 +95,7 @@ red line. Checks:
 - that tray misses the swinging gate, falls, and is a strike, with a MISSED! popup,
 - the idle player is sent home in the first hour on exactly 3 strikes, the screen shows the time and shakes,
 - the belt is frozen after game over and Shift does nothing; the night counts in the record book,
-- Enter goes to the title, and Enter again starts a clean night at 10 PM (no pay, nothing spent, no mate, all
+- one Enter starts a clean night at 10 PM (no pay, nothing spent, no mate, all
   emergency stops) with old trays cleared,
 - on that new night, Z does nothing; a Shift with no left/right location moves no gate, switches on the Z and /
   backup keys and shows them on the HUD; then Z works the left gate (#22),
@@ -147,7 +147,7 @@ Automated tests cannot judge feel. Before a release, play once and confirm:
 - [ ] Pressing a Shift just as a tray hits the line makes it tumble off: a strike.
 - [ ] Combo and multiplier rise; pay jumps by $20 on the 5th in a row; the combo survives into the next hour.
 - [ ] Both Shifts: STOPPED!, the belt and the clock freeze for about 2.5 s, E-STOPS goes down by one.
-- [ ] At 11:00 PM: tally screen with the bonus if clean; Enter opens the break room on Skip.
+- [ ] At 11:00 PM the break room opens on Skip, with the hour's tally and the bonus if clean on its heading.
 - [ ] In the break room the Shifts move the selection, Enter buys (ka-ching) and starts 11 PM with nuggets moved,
       marked `*` on the board. Coffee makes the belt visibly slower.
 - [ ] Popups and puffs on correct sorts, bigger popups at combo 5, 10, 15; shake and STRIKE! on wrong sorts.
@@ -155,7 +155,7 @@ Automated tests cannot judge feel. Before a release, play once and confirm:
 - [ ] With Mate's Help, a wrong tray shows YOUR MATE COVERED IT! and no strike.
 - [ ] From 12 AM red-stamped trays (round R badge) go straight whatever is on them.
 - [ ] At 2 AM the chutes swap and the bins relabel.
-- [ ] 3 strikes in one hour: SENT HOME with the time. Enter returns to the menu.
+- [ ] 3 strikes in one hour: SENT HOME with the time. Enter starts a new night at 10:00 PM.
 - [ ] From 2 AM: a few trays carry a chicken in sunglasses and a trench coat; sending one left or right says BAWK?!
       with no strike, sending it straight on says PSST... THANKS.
 - [ ] From 2 AM the line dims briefly every 9 s with a buzz, and it is not uncomfortable to look at.
@@ -166,7 +166,7 @@ Automated tests cannot judge feel. Before a release, play once and confirm:
 - [ ] Esc (and P) pauses mid-shift: everything freezes and goes quiet; Esc resumes; Q quits to the title. Clicking
       off the window pauses too.
 - [ ] M mutes on the title and the pause card, and stays muted after restarting the game.
-- [ ] The music runs on the line, stops on the tally and the shop, and is noticeably quicker by 5 AM.
+- [ ] The music runs on the line, stops in the shop, and is noticeably quicker by 5 AM.
 - [ ] After a finished night the title shows the best night; the 6 AM payslip shows NEW BEST and the hour-by-hour
       chart, with red X marks over hours with strikes.
 - [ ] Windows .exe: double-click, it runs full speed with sound and no console window.

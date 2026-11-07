@@ -76,7 +76,7 @@ From a terminal: `godot --path .`
 ```bash
 godot --headless --path . --import                                # once, after cloning
 godot --headless --path . -s tests/test_logic.gd                  # 201 rule and record checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (188 checks)
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (196 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).
