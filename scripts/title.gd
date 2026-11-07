@@ -52,12 +52,15 @@ func _draw() -> void:
 	draw_string(font, Vector2(400, 418), "3 strikes in one hour and you're sent home.", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, INK)
 
 	if backup_keys:
-		draw_string(font, Vector2(0, 505), "Your setup can't tell left Shift from right Shift: use Z (left gate) and / (right gate).",
+		draw_string(font, Vector2(0, 493), "Your setup can't tell left Shift from right Shift: use Z (left gate) and / (right gate).",
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, HI_VIS)
 	if fmod(t, 1.0) < 0.7:
 		draw_string(font, Vector2(0, 458), "PRESS ENTER TO CLOCK IN", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, HAT)
-	draw_string(font, Vector2(0, 528), "Windows: turn off the Sticky Keys shortcut first (Settings > Accessibility > Keyboard).   Game Off 2026: SHIFT",
-		HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color("90a4ae"))
+	draw_string(font, Vector2(16, 30), "Game Off 2026: SHIFT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("90a4ae"))
+	# the Sticky Keys prompt steals focus mid-shift and a game can't turn it off, so this has to get read (#21)
+	draw_rect(Rect2(0, 504, size.x, 36), HAT)
+	draw_string(font, Vector2(0, 528), "WINDOWS: 5 Shift presses open Sticky Keys. Turn off its shortcut first: Settings > Accessibility > Keyboard",
+		HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, NIGHT)
 
 
 ## "BEST NIGHT $1,240 take-home   BEST COMBO 31   2 of 5 nights survived   SECRET ENDING FOUND"

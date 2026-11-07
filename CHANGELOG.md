@@ -12,6 +12,7 @@ All notable changes to Cluck Shift are recorded here. The format follows
   time, not 6%, to make up for shorter hours.
 - The tally screen is gone: the hour's tally is on the break-room heading, so there is one Enter between hours. One
   Enter after being sent home starts a new night.
+- The Sticky Keys warning on the title screen is now a readable amber bar, not faint grey text (#21).
 
 ### Added
 - **Phase 5: polish around the same loop.** Esc or P pauses mid-shift: the belt, clock, PA, flicker and timers all

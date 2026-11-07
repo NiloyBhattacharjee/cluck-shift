@@ -513,7 +513,7 @@ Field reference: [data-format.md](data-format.md).
 
 | Issue | Impact | Mitigation |
 |---|---|---|
-| Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | The README and the title screen tell players to turn off the shortcut (#21). A game cannot turn it off. |
+| Windows Sticky Keys | Pressing Shift 5 times opens the Sticky Keys prompt, in the desktop build and in browsers on Windows. | The README and an amber bar on the title screen tell players to turn off the shortcut (#21). A game cannot turn it off, but losing focus does pause the shift. |
 | Shift location not reported | Some setups report Shift with no location (#22). | Fixed: Z and / take over the gates, with a notice on the title and HUD. |
 | Browser focus | The web build only hears keys after it has focus. | `html/focus_canvas_on_start`; Enter on the menu needs a click or key on the page anyway. |
 | Random streaks | Uniform random kinds can produce runs. | Fine so far; a shuffled bag per hour if playtests say it feels unfair. |
@@ -584,7 +584,8 @@ Screen shake uses trauma: each event adds trauma (capped at 1), it decays at 3 p
 
 A night-shift chicken in a hard hat and hi-vis vest, holding a clipboard and bobbing gently; a moon; a moving belt
 along the bottom; the four controls; the rules in three lines; a blinking "PRESS ENTER TO CLOCK IN"; and the Sticky
-Keys hint. All drawn with shapes in `scripts/title.gd`. Game over and the win screen return here.
+Keys warning on an amber bar along the bottom. All drawn with shapes in `scripts/title.gd`. The win screen returns here;
+from being sent home, Enter starts a new night and Esc then Q reaches the title.
 
 ---
 
