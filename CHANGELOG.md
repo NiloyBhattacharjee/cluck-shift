@@ -1,9 +1,11 @@
 # Changelog
 
 All notable changes to Cluck Shift are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow the build phases (0.1 = Phase 1).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and 0.1.0 is the first public release.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-07
 
 ### Added
 - **Gambling in the break room, on in-game pay only** (#41). Double or Nothing bets $300 on a clean next hour. Chicken
