@@ -43,7 +43,8 @@ an unsigned app ("More info > Run anyway"); the itch.io page should say so.
 
 ## 3. Upload
 
-1. Zip the **contents** of `build/web/` (so `index.html` is at the root of the zip).
+1. Zip the **contents** of `build/web/` (so `index.html` is at the root of the zip), leaving out any `*.import` files
+   the editor left there.
 2. itch.io > your game > Edit > Uploads: upload the zip and tick **This file will be played in the browser**.
 3. Kind of project: **HTML**. Viewport: **960 x 540**. Tick **Fullscreen button**. Leave
    **SharedArrayBuffer support** off (not needed).

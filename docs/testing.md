@@ -140,7 +140,7 @@ rule: break it, see a test fail, fix it.
 
 Automated tests cannot judge feel. Before a release, play once and confirm:
 
-- [ ] The title screen shows the chicken, the controls and the Sticky Keys hint; Enter starts at 10:00 PM with the
+- [ ] The title screen shows the chicken, the controls and the Sticky Keys warning on an amber bar; Enter starts at 10:00 PM with the
       supervisor's note on a sticky note and the factory hum.
 - [ ] Left Shift and Right Shift each light their own gate box, chute and bin; the gate boxes flash orange as it swings.
 - [ ] A tray that crosses the red line goes where the lit route was, outlined green or red.
