@@ -15,6 +15,8 @@ const SKIP := {"id": "skip", "name": "Skip", "price": 0, "text": "Keep your pay.
 const POPUP_AT := Belt.FORK + Vector2(0, -70)
 const MUSIC_STEP := 0.03  # the music plays this much faster every hour (#34)
 const TAP_GUARD := 0.5  # seconds after a screen opens when a tap does nothing, so a frantic tap can't buy or skip it
+const FOCUS_CHECK := 0.25  # seconds between checks that the web page still has the game's keyboard (#46)
+const CANVAS_HAS_KEYS := "document.hasFocus() && document.activeElement === document.querySelector('canvas')"
 
 var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
 var state := State.MENU
@@ -23,6 +25,8 @@ var _pa_seen := 0  # logic.pa_count when the banner last updated
 var backup_keys := false  # Z and / stand in for the Shifts; see _side()
 var touch := false  # the latest input was a tap: shows tap wording and larger text (#44)
 var _tap_wait := 0.0  # seconds left of TAP_GUARD
+var has_keyboard := true  # false on the web once a click elsewhere on the page has taken the keys (#46)
+var _focus_wait := 0.0  # seconds until the next check of has_keyboard
 var lights_out := false  # the flicker as last shown
 var _pa_colour: Color
 var paused := false  # Esc / P during a shift (#31)
@@ -47,6 +51,7 @@ var records: Dictionary  # the record book and the mute setting (#32)
 @onready var pause_menu: Control = $HUD/PauseMenu
 @onready var sound_button: Button = $HUD/PauseMenu/Sound
 @onready var rotate_card: Control = $HUD/RotateCard
+@onready var focus_hint: Control = $HUD/FocusHint
 @onready var title: Control = $HUD/Title
 @onready var ending: Control = $HUD/Ending
 
@@ -73,6 +78,22 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_tap_wait = maxf(_tap_wait - delta, 0.0)
+	_focus_wait -= delta
+	if _focus_wait <= 0.0 and OS.has_feature("web"):
+		_focus_wait = FOCUS_CHECK
+		_set_keyboard(touch or JavaScriptBridge.eval(CANVAS_HAS_KEYS, true))
+
+
+## On a web page the keys only reach the game while it has focus, and any click elsewhere on the page
+## takes it. Keys then go nowhere with no sign why, so say so, and pause a shift rather than run on (#46).
+func _set_keyboard(on: bool) -> void:
+	if has_keyboard == on:
+		return
+	has_keyboard = on
+	title.has_keyboard = on
+	focus_hint.visible = not on
+	if not on and state == State.PLAYING and not paused:
+		_set_paused(true)
 
 
 # --- state machine ---------------------------------------------------------
@@ -173,7 +194,7 @@ func _show_pause() -> void:
 	if touch and paused:
 		_show("PAUSED\n\n\n\n\n\n\n\n")  # the buttons of PauseMenu sit under it
 		return
-	_show("PAUSED\n\nEsc / P    back to work\nM    sound: %s\nQ    quit to the title (this night won't count)"
+	_show("PAUSED\n\nEnter / Esc / P / click    back to work\nM    sound: %s\nQ    quit to the title (this night won't count)"
 		% ("OFF" if records.muted else "ON") if paused else "")
 
 
@@ -242,7 +263,18 @@ func _on_hour_over() -> void:
 
 
 ## Taps are read here, ahead of the screens drawn over the line. Only the pause buttons take a tap for themselves.
+## A mouse click does what a tap does on every screen but the line, where the gates stay on the keys.
 func _input(event: InputEvent) -> void:
+	var click := event as InputEventMouseButton
+	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and click.device != InputEvent.DEVICE_ID_EMULATION:
+		if rotate_card.visible or touch:
+			return
+		if state == State.PLAYING:
+			if paused:
+				_set_paused(false)
+		else:
+			_on_tap(click.position)
+		return
 	var tap := event as InputEventScreenTouch
 	if tap == null or not tap.pressed:
 		return
@@ -289,6 +321,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if state == State.PLAYING:
 		if key.keycode in [KEY_ESCAPE, KEY_P]:
 			_set_paused(not paused)
+		elif paused and key.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			_set_paused(false)
 		elif paused and key.keycode == KEY_M:
 			_toggle_mute()
 		elif paused and key.keycode == KEY_Q:

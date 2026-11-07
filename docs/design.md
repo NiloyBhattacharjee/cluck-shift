@@ -1024,3 +1024,25 @@ on the line, or to keys.
 
 **Not done.** The belt runs at the same speed as on a keyboard, and fingers cover part of the screen. Add touch speeds if
 playing on a real phone shows they are needed.
+
+### 23.10 Keyboard focus on a web page (#46)
+
+On a web page the keys only reach the game while its canvas has focus. itch.io hosts the game in an iframe from another
+site, so focus is easy to lose: the page can load without it, and any click on the page text takes it. Keys then go to the
+page, with no sign why. `APPLICATION_FOCUS_OUT` doesn't fire when focus moves within the page, so a shift ran on unseen.
+
+Every `FOCUS_CHECK` (0.25 s) on the web, `main.gd` asks the page whether the canvas has focus:
+
+```mermaid
+stateDiagram-v2
+    HasKeyboard --> Lost: click elsewhere on the page, or the page loads without focus
+    Lost --> HasKeyboard: click the game
+    Lost --> Lost: amber message, CLICK HERE TO CLOCK IN on the title, a shift pauses
+```
+
+- **Say so:** an amber bar across the top says to click the game, and the title says CLICK HERE TO CLOCK IN.
+- **Pause:** a shift in progress pauses as focus goes. Coming back doesn't resume it by itself, so nobody is caught out.
+- **A click works:** a mouse click does what a tap does on every screen but the line (section 23.9), so the click that brings
+  focus back also starts the game or goes on. On the pause card it resumes. On the line the gates stay on the keys.
+- **Enter resumes** from the pause card, as well as Esc and P.
+- **Touch mode skips the check:** taps don't need focus, and a phone may never focus the canvas.

@@ -9,7 +9,7 @@ extends SceneTree
 ## 2) Idle night: a late Shift press makes a tray miss the gate; with no other presses the player
 ##    is sent home in the first hour, the belt freezes, and one Enter starts a clean new night.
 ##    Esc then Q quits a night to the title without it counting as a night played.
-## 3) Touch: every screen again with taps instead of keys.
+## 3) Keyboard focus on a web page, mouse clicks, then touch: every screen again with taps instead of keys.
 ## Run: godot --headless --fixed-fps 60 -s tests/test_play.gd     (exit code 0 = all passed)
 
 const FPS := 60
@@ -37,7 +37,7 @@ var strange_by_hour := {}  # hour -> strange trays seen on the belt
 var dark_by_hour := {}  # hour -> the lights went out
 var radio_seen := false
 var escape_popup_seen := false
-var touch_step := 0
+var touch_step := 10
 var spin_checked := false
 var spin_payout := 0
 var sabotage: Tray = null  # the tray sent wrong on purpose for the mate to cover
@@ -413,6 +413,41 @@ func _check_new_night() -> void:
 func _touch() -> void:
 	var s: ShiftState = main.logic
 	match touch_step:
+		10:  # #46: a click elsewhere on a web page takes the keys
+			if in_state == 2:
+				main._set_keyboard(false)
+				check(main.focus_hint.visible and not main.title.has_keyboard and main.state == Main.State.MENU, "keys lost on the title: it says to click")
+				_click(Vector2(480, 270))
+				check(main.state == Main.State.MENU, "a click right after a screen opens does nothing")
+			elif in_state == 60:
+				_click(Vector2(480, 270))
+				check(main.state == Main.State.PLAYING, "a mouse click on the title clocks in")
+				main._set_keyboard(true)
+				check(not main.focus_hint.visible and main.title.has_keyboard, "keys back: the message goes")
+				touch_step = 11
+		11:
+			if in_state == 10:
+				var route := s.route
+				_click(Vector2(100, 300))
+				check(s.route == route and not main.paused, "on the line a click moves no gate: the gates stay on the keys")
+				main._set_keyboard(false)
+				check(main.paused and main.focus_hint.visible, "keys lost mid-shift: the shift pauses rather than run on")
+				main._set_keyboard(true)
+				_key(KEY_ENTER)
+				check(not main.paused and main.state == Main.State.PLAYING, "Enter on the pause card resumes")
+				main._set_keyboard(false)
+				_click(Vector2(100, 300))
+				check(not main.paused and s.route == route, "a click on the pause card resumes, and moves no gate")
+				main._set_keyboard(true)
+				var emulated := InputEventMouseButton.new()
+				emulated.button_index = MOUSE_BUTTON_LEFT
+				emulated.pressed = true
+				emulated.device = InputEvent.DEVICE_ID_EMULATION
+				_key(KEY_ESCAPE)
+				root.push_input(emulated, true)
+				check(main.paused, "the mouse click a tap also sends doesn't count twice")
+				_key(KEY_Q)
+				touch_step = 0
 		0:  # the title
 			if in_state == 2:
 				check(not main.touch and not main.belt.touch, "keyboard wording until the first tap")
@@ -506,6 +541,14 @@ func _touch() -> void:
 				check(main.state == Main.State.PLAYING and main.logic != s, "a tap after that starts a new night")
 				DirAccess.remove_absolute(RECORDS)
 				_finish()
+
+
+func _click(at: Vector2) -> void:
+	var e := InputEventMouseButton.new()
+	e.position = at
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	root.push_input(e, true)
 
 
 func _tap(at: Vector2) -> void:

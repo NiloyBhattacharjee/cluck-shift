@@ -173,6 +173,22 @@ focus_mode = 0
 theme_override_font_sizes/font_size = 26
 text = "Quit to the title"
 
+[node name="FocusHint" type="ColorRect" parent="HUD"]
+visible = false
+mouse_filter = 2
+anchor_right = 1.0
+offset_bottom = 38.0
+color = Color(1, 0.79, 0.16, 1)
+
+[node name="Text" type="Label" parent="HUD/FocusHint"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_colors/font_color = Color(0.11, 0.14, 0.19, 1)
+theme_override_font_sizes/font_size = 20
+text = "The game has lost the keyboard: click the game to get it back"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="RotateCard" type="ColorRect" parent="HUD"]
 visible = false
 anchor_right = 1.0

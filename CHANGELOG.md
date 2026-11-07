@@ -5,6 +5,11 @@ All notable changes to Cluck Shift are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- On a web page, Enter did nothing once the game had lost keyboard focus, which a click on the page text does, and a
+  shift ran on unseen (#46). Now an amber bar says to click the game, a shift pauses, a click starts the game and works the
+  menus, and Enter resumes from the pause card.
+
 ### Added
 - **Touchscreens** (#44). Phones and tablets play the same web build: tap each half of the screen for its gate, both sides
   for the emergency stop, and cards in the break room. There is a pause button and a pause menu. The game follows whichever

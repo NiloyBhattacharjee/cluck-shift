@@ -9,6 +9,7 @@ const HAT := Color("ffca28")
 
 var backup_keys := false  # set by main.gd when Shift arrives with no left/right (#22)
 var touch := false  # tap wording, and no Sticky Keys warning (#44)
+var has_keyboard := true  # false on the web once a click elsewhere on the page has taken the keys (#46)
 var records := {}  # main.gd's record book (#32): best night and the mute setting
 
 
@@ -62,7 +63,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(0, 493), "Your setup can't tell left Shift from right Shift: use Z (left gate) and / (right gate).",
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, HI_VIS)
 	if fmod(t, 1.0) < 0.7:
-		draw_string(font, Vector2(0, 458), "TAP TO CLOCK IN" if touch else "PRESS ENTER TO CLOCK IN", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, HAT)
+		draw_string(font, Vector2(0, 458), "TAP TO CLOCK IN" if touch else ("PRESS ENTER TO CLOCK IN" if has_keyboard else "CLICK HERE TO CLOCK IN"), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, HAT)
 	draw_string(font, Vector2(16, 30), "Game Off 2026: SHIFT", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("90a4ae"))
 	if not touch:  # the Sticky Keys prompt steals focus mid-shift and a game can't turn it off, so this has to get read (#21)
 		draw_rect(Rect2(0, 504, size.x, 36), HAT)
