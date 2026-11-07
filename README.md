@@ -56,6 +56,9 @@ bonus. A wrong exit is a strike, and so is a tray that arrives while the gate is
 **Between hours** the break room sells Coffee ($150, slower belt next hour), Mate's Help ($250, covers your next
 strike) and Earplugs ($100, no PA next hour). Whatever you spend comes off your take-home pay.
 
+Feeling lucky? **Double or Nothing** ($300) is a bet that your next hour will be clean, and **Chicken Slots** ($50) is
+one spin with a $5,000 jackpot. Both use in-game pay only: no real money, nothing to buy.
+
 > **Windows players:** pressing Shift five times opens the Sticky Keys prompt. Turn it off in
 > Settings > Accessibility > Keyboard > Sticky keys > "Keyboard shortcut for Sticky keys".
 >
@@ -76,7 +79,7 @@ From a terminal: `godot --path .`
 ```bash
 godot --headless --path . --import                                # once, after cloning
 godot --headless --path . -s tests/test_logic.gd                  # 201 rule and record checks
-godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (196 checks)
+godot --headless --path . --fixed-fps 60 -s tests/test_play.gd    # plays a whole night, shop and pause included (209 checks)
 ```
 
 Both exit with code 0 when everything passes. CI runs them on every push. Details: [docs/testing.md](docs/testing.md).
@@ -140,6 +143,7 @@ scripts/tray.gd        a tray: movement and drawing
 scripts/juice.gd       popups, particle puffs, screen shake
 scripts/title.gd       the title screen
 scripts/shop_view.gd   the break-room vending machine
+scripts/slots_view.gd  the Chicken Slots reels
 scripts/ending.gd      the two 6 AM endings and the hour-by-hour chart
 scripts/sfx.gd         every sound and the music, synthesized at start-up
 tests/                 headless test scripts

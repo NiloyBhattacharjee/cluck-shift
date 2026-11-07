@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/title.gd" id="4_title"]
 [ext_resource type="Script" path="res://scripts/shop_view.gd" id="5_shop"]
 [ext_resource type="Script" path="res://scripts/ending.gd" id="6_ending"]
+[ext_resource type="Script" path="res://scripts/slots_view.gd" id="7_slots"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_fork"]
 size = Vector2(80, 20)
@@ -118,6 +119,12 @@ visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("5_shop")
+
+[node name="Slots" type="Control" parent="HUD"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("7_slots")
 
 [node name="Title" type="Control" parent="HUD"]
 anchor_right = 1.0

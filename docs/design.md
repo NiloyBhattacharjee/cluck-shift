@@ -229,8 +229,8 @@ fresh.
 | Blue stamp | Diamond blue badge with "B", top right | `#1e88e5` | From 3 AM |
 
 Kinds and stamps differ in shape as well as colour, so they can be told apart without colour vision. A new tray's
-kind is picked uniformly from the kinds that currently have a rule. While any stamp rule exists, `stamp_chance` (30%)
-of trays get a stamp, picked uniformly from the stamps that have a rule.
+exit is picked first, then a tray that goes there (section 23.7). At an exit both a kind and a stamp go to, `stamp_chance`
+(30%) of trays are stamped. At an exit only a stamp goes to, every tray is stamped, on a random kind.
 
 **A stamp rule beats the kind rule.** A red-stamped wing goes where red stamps go. A tray with no stamp, or with a
 stamp that has no rule, goes where its kind goes.
@@ -405,6 +405,8 @@ stateDiagram-v2
     PLAYING --> GAME_OVER: 3 strikes this hour
     SHOP --> SHOP: Left / Right Shift (choose), Enter on an item you can't afford
     SHOP --> PLAYING: Enter (buy or skip; next hour)
+    SHOP --> SLOTS: Enter on Chicken Slots
+    SLOTS --> PLAYING: Enter once the reels land
     GAME_OVER --> PLAYING: Enter (new night, 10 PM)
     WIN --> MENU: Enter
 ```
@@ -413,7 +415,8 @@ stateDiagram-v2
 |---|---|---|---|---|
 | MENU | New `ShiftState`, clear trays, show the title screen | Enter, Space | Nothing | Enter |
 | PLAYING | Next hour: clear belt, close gates, reset strikes, apply note, show note card, start `HourTimer` (30 s) and the first spawn after 3 s | Shifts | Tick clock and ramp, move trays, pause timers while stopped, hide the note after 3 s | Hour timer (clears the belt, `end_hour()` adds the clean bonus and uses up Coffee and Earplugs, whistle), or 3rd strike |
-| SHOP | Show the vending machine on **Skip**, with the hour's tally, your wallet and active items | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
+| SHOP | Show the vending machine on **Skip**, with the hour's tally, your wallet, active items and how a bet went | Shifts choose; Enter buys | Nothing | Enter on Skip or an affordable item |
+| SLOTS | `spin()` has picked the result; the reels spin | Shifts stop the next reel; Enter once all three land | Nothing (the view animates itself) | Enter after the reels land |
 | GAME_OVER | Stop timers, big shake, show "SENT HOME at 1:23 AM", earned, spent, trays, accuracy, best combo | Enter, Space | Nothing (belt frozen) | Enter starts a new night at once |
 | WIN | Stop timers, pick the ending (`ShiftState.ending()`), show the dawn scene and the payslip: earned, spent, take-home pay, trays, accuracy, best combo, strange trays let through | Enter, Space | Nothing (the ending animates itself) | Enter |
 
@@ -491,9 +494,12 @@ so the game has no audio files and no licences to track.
 | `clean_hour_bonus` | rules.json | 100 | Bonus for an hour with no strikes. |
 | `strikes_allowed` | rules.json | 3 | Strikes in one hour before you are sent home. |
 | `estops` / `estop_seconds` | rules.json | 3 / 2.5 | Emergency stops per night and their length. |
-| `stamp_chance` | rules.json | 0.3 | Share of trays stamped while a stamp rule exists. |
+| `stamp_chance` | rules.json | 0.3 | Share of trays stamped at an exit both a kind and a stamp go to. |
+| `no_repeat_from` | rules.json | 2 (12 AM) | From this hour no two trays in a row share an exit. Before it, never three. |
+| `interval_jitter` | rules.json | 0.15 | Each gap between trays is the interval, give or take this share. |
 | `swing_seconds` | rules.json | 0.08 | Gate swing time; a tray arriving mid-swing is missed. |
-| `shop` | rules.json | Coffee $150, Mate's Help $250, Earplugs $100 | Names, prices and descriptions of the three items. |
+| `shop` | rules.json | Coffee $150, Mate's Help $250, Earplugs $100, Double or Nothing $300, Chicken Slots $50 | Names, prices and descriptions of the five items. |
+| `slots` | rules.json | see 23.8 | Reel odds and what each result pays. |
 | `coffee_factor` | rules.json | 0.8 | Coffee multiplies speed and divides interval by this. |
 | `pa.from_hour` / `every` / `seconds` | rules.json | 2 (12 AM) / 6 to 11 s / 2.5 s | When the PA starts, how often, how long. |
 | `pa.lines` | rules.json | 8 lines | What the PA says. |
@@ -531,6 +537,8 @@ After each hour (not after 5 AM) you go straight to the break room, with the hou
 | Coffee | $150 | Belt speed x 0.8 and tray interval / 0.8: slower, and trays come less often, so the gap between trays is unchanged | Next hour |
 | Mate's Help | $250 | Your mate covers your next strike (wrong or missed): no strike, but the tray still doesn't pay and the combo still resets | Until used; you can stack several |
 | Earplugs | $100 | No PA announcements | Next hour |
+| Double or Nothing | $300 | A bet on the next hour (section 23.8) | Next hour |
+| Chicken Slots | $50 | One spin, right now (section 23.8) | Straight away |
 | Skip | free | Keep your pay | |
 
 - **Controls:** Left / Right Shift move the selection (it wraps), Enter buys the selected item and starts the next
@@ -545,6 +553,7 @@ flowchart LR
     SH -->|Left / Right Shift| SH
     SH -->|Enter on Skip| P[PLAYING next hour]
     SH -->|Enter, affordable| B[buy: wallet - price<br/>effect armed, ka-ching] --> P
+    SH -->|Enter on Chicken Slots, affordable| SL[SLOTS: stop three reels] -->|Enter| P
     SH -->|Enter, too expensive| R[buzz, stay] --> SH
 ```
 
@@ -863,3 +872,104 @@ flowchart LR
 The separate tally screen is gone, along with the HOUR_END state: the tally moved onto the break-room heading, and
 the whole night's hours are on the 6 AM ledger. To get back to the title from being sent home, press Enter, then Esc
 and Q; a night quit that way doesn't count.
+
+### 23.7 Tray randomness (#40)
+
+The gate stays where it is between trays, so a tray going to the same exit as the last one needs no key press. Picking
+each tray with no memory made those runs common, and combo pay came free. Kinds were also the wrong thing to pick
+evenly: when drumsticks and nuggets both go right, right got twice the trays. The exit now comes first:
+
+```
+next_tray():
+    if strange hour, under the hourly cap, last exit isn't center, and randf() < strange.chance:
+        note exit center; return a strange tray
+    open = exits some kind or stamp goes to
+    limit = 1 if hour >= no_repeat_from else 2
+    if open has more than one exit and the last exit has run limit times:
+        remove the last exit from open
+    exit = uniform pick from open
+    if a stamp goes to exit, and (no kind does or randf() < stamp_chance):
+        return a random kind wearing a random stamp that goes to exit
+    return a random kind that goes to exit
+```
+
+```mermaid
+flowchart TD
+    A[New tray] --> B{Strange hour, under the cap,<br/>last exit not straight, chance?}
+    B -- yes --> C[Strange tray, counts as straight on]
+    B -- no --> D[Exits with a rule]
+    D --> E{Last exit run at the limit?<br/>12 AM on: 1. Before: 2.}
+    E -- yes --> F[Leave the last exit out]
+    E -- no --> G[Pick an exit, each equally likely]
+    F --> G
+    G --> H[Pick a tray that goes there]
+```
+
+- **From 12 AM every tray needs a key press.** All three exits are in play by then, so the next exit is always one of
+  two: never a certain thing. 11 PM has only two exits, which is why the first two hours allow one repeat. A strict
+  rule there would be a plain left, right, left, right.
+- **Every hour starts as if the last tray went straight on,** because the gates start closed.
+- **A strange tray counts as going straight on,** so letting one through also needs a key press.
+- **Stamps follow the bins.** A bin only a stamp goes to gets its full share of trays. About a third of trays are stamped
+  from 12 AM to 2 AM and over 40% at 3 AM, then 20% at 4 AM and 10% at 5 AM, when wings and not red stamps fill the straight bin.
+- **The rhythm varies.** Each gap is `logic.interval`, give or take `interval_jitter` (15%), from `next_gap()`. At the
+  shortest gap trays still have at least 0.6 s and 100 px between them (tested).
+
+The notes still change the rules in the same order every night, because the notes build on each other.
+
+### 23.8 Gambling in the break room (#41)
+
+Both games use in-game pay only. There is no real money, nothing to buy and no cash-out. Each one takes up the single
+item a break allows, so a bet is a trade against Coffee or a mate. The net result is `ShiftState.winnings`, kept apart from
+`spent` and shown on the payslip as **Bets and slots**. It counts towards take-home pay and the best-night record.
+
+**Double or Nothing ($300).** A flat bet that the next hour has no strikes.
+
+| Next hour | Result |
+|---|---|
+| At least one tray sorted, no strikes | +$300 (the stake comes back, plus $300) |
+| Any strike, or nothing sorted | -$300 |
+| A strike your mate covers | Not a strike: the bet stands |
+| Sent home | -$300, already taken off the wallet |
+
+The stake is flat because a share of the wallet would grow too fast: a clean player staking half each hour would finish
+about 17 times richer. A flat stake adds at most $2,100 to a night that earns about $10,000. The HUD shows `BET $300`
+during the hour, and the next break room says how it went.
+
+**Chicken Slots ($50).** One spin, then straight on to the next hour.
+
+```
+reels = three independent picks, each by slots.weights
+payout = slots.three[symbol] if all three match
+       = slots.pair          if any two match
+       = 0                   otherwise
+```
+
+| Symbol | Chance per reel | Three of a kind pays | Chance of three |
+|---|---|---|---|
+| Wing | 40% | $100 | 6.4% |
+| Drumstick | 30% | $200 | 2.7% |
+| Nugget | 25% | $400 | 1.6% |
+| Chicken in sunglasses | 5% | $5,000 | 0.0125% (1 in 8,000) |
+| Any pair | 62.5% | $40 | |
+| Nothing | 27% | $0 | |
+
+On average a spin pays back 87% of its stake (tested: between 80% and 100%, and measured over 20,000 spins). So betting
+on your own hands pays and the slots slowly lose, which keeps skill the best way to earn.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Spinning: Enter on the card. buy() takes $50 and spin() picks the result
+    Spinning --> Stopping: Shift stops the next reel
+    Stopping --> Stopping: Shift stops the next reel
+    Stopping --> Landed: third reel lands
+    Landed --> [*]: Enter, next hour
+```
+
+**How it feels.** The reels scroll and tick. Each Shift press slows the next reel to its symbol, and the third reel slips
+further than the others, further still if the first two match. Wins get a fanfare; three of a kind gets coins and a shake;
+the jackpot gets the biggest of each.
+
+**What stays honest.** The result is picked before the reels stop, so when you press changes nothing. Each strip holds the
+symbols in the same proportions as the real odds, one place per 5 of weight. Near misses are not forced: a pair and a
+miss happen at the rate the odds say.

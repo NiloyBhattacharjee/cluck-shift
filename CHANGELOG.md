@@ -5,7 +5,16 @@ All notable changes to Cluck Shift are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Gambling in the break room, on in-game pay only** (#41). Double or Nothing bets $300 on a clean next hour. Chicken
+  Slots is a $50 spin: three Shift presses stop three reels, with a $5,000 jackpot. The slots pay back 87% on average.
+  The payslip gets a Bets and slots line.
+
 ### Changed
+- **No more auto combos** (#40). A tray's exit is picked first, every open exit equally likely. From 12 AM no two trays
+  in a row share an exit, so every tray needs a key press; before that, never three. Gaps between trays vary by 15%.
+  How many trays are stamped now depends on the hour: from over 40% at 3 AM down to 10% at 5 AM.
+- The break room is now two rows of cards, to fit six.
 - **Fast pacing.** A night is about 4 minutes instead of 10: hours last 30 s, not 75, so a new rule lands every 30 s.
   The belt starts at 160 px/s, not 100, and trays reach one every 0.72 s by 5 AM, not 0.9 s.
 - The gate swings in 0.08 s, not 0.12 s. PA announcements are shorter and more frequent. Trays are strange 10% of the

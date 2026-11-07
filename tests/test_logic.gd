@@ -17,6 +17,7 @@ func _initialize() -> void:
 	test_supervisor_notes()
 	test_hour_tally()
 	test_next_tray()
+	test_gambling()
 	test_shop()
 	test_items()
 	test_pa()
@@ -224,17 +225,128 @@ func test_next_tray() -> void:
 		if t.stamp != "":
 			seen["stamp"] = true
 	check(seen.size() == 3 and not seen.has("stamp"), "before any stamp rule: only the three kinds, no stamps")
+	s = night()
+	for i in cfg.hours.size():
+		if i > 0:
+			s.start_hour()
+		var name := ShiftState.hour_name(i)
+		var last := "center"  # the gates start every hour closed
+		var run := 1
+		var longest := 1
+		var repeats := 0
+		var count := {}
+		var tenders := 0
+		var stamped := 0
+		for n in 2000:
+			var t := s.next_tray()
+			if t.kind == ShiftState.STRANGE:
+				s.hour_strange = 0  # keep them coming, to check they can't repeat an exit either
+			var exit: String = "center" if t.kind == ShiftState.STRANGE else s.exit_for(t.kind, t.stamp)
+			repeats += int(exit == last)
+			run = run + 1 if exit == last else 1
+			longest = maxi(longest, run)
+			last = exit
+			count[exit] = count.get(exit, 0) + 1
+			tenders += int(t.kind == "tender")
+			stamped += int(t.stamp != "")
+		check(longest <= 2, "%s: never three trays in a row to one exit (longest %d)" % [name, longest])
+		if i >= int(cfg.no_repeat_from):
+			check(repeats == 0, "%s: every tray needs a key press: no two in a row to one exit (%d)" % [name, repeats])
+			check(count.size() == 3, "%s: all three exits are in play, so the next one is never certain" % name)
+		for exit: String in count:  # the strange trays push straight on a little above its share
+			check(count[exit] > 2000 / count.size() * 0.75, "%s: %s gets a fair share (%d of 2000)" % [name, exit, count[exit]])
+		if i == 3:
+			check(tenders > 150, "a new kind starts spawning as soon as it has a rule (%d)" % tenders)
+			check(stamped > 400, "a bin only a stamp goes to still gets its share of trays (%d stamped)" % stamped)
+	s = night()
+	var gaps := []
+	for i in 500:
+		gaps.append(s.next_gap())
+	var lo: float = s.interval * (1.0 - cfg.interval_jitter)
+	var hi: float = s.interval * (1.0 + cfg.interval_jitter)
+	check(gaps.min() >= lo and gaps.max() <= hi, "the gap between trays stays within interval_jitter")
+	check(gaps.max() - gaps.min() > (hi - lo) * 0.8, "and really does vary (%.2f to %.2f s)" % [gaps.min(), gaps.max()])
+
+
+func test_gambling() -> void:
+	var s := night()
+	var stake: int = s.shop_item("double").price
+	check(not s.buy("double") and s.bet == 0 and s.winnings == 0, "no bet on an empty wallet")
+	s.pay = 1000
+	s.sort("nugget")  # the gate is center and nuggets go straight: right
+	var before := s.wallet()
+	check(s.buy("double") and s.bet == stake and s.wallet() == before - stake, "a bet comes off the wallet")
+	check(s.spent == 0, "and is not break-room spending on the payslip")
+	var pay_before := s.pay
+	var t := s.end_hour()
+	check(s.bet == 0 and s.last_bet == stake and s.winnings == stake, "a clean hour wins the bet: +$%d" % stake)
+	check(s.wallet() == pay_before + t.bonus + stake, "the stake comes back with the win")
 	s.start_hour()
-	s.start_hour()
-	s.start_hour()
-	var stamped := 0
-	var tenders := 0
-	for i in 1000:
-		var t := s.next_tray()
-		stamped += int(t.stamp == "red")
-		tenders += int(t.kind == "tender")
-	check(abs(stamped / 1000.0 - cfg.stamp_chance) < 0.06, "about stamp_chance of trays are stamped (%d / 1000)" % stamped)
-	check(tenders > 150, "a new kind starts spawning as soon as it has a rule")
+	s.end_hour()
+	check(s.last_bet == 0, "no bet: nothing to report the next hour")
+
+	s = night()
+	s.pay = 1000
+	s.buy("double")
+	s.sort("wing")  # a strike: the gate is center and wings go left
+	s.end_hour()
+	check(s.last_bet == -stake and s.winnings == -stake and s.wallet() == 1000 - stake, "one strike loses the bet")
+
+	s = night()
+	s.pay = 1000
+	s.mates = 1
+	s.buy("double")
+	s.sort("nugget")
+	s.sort("wing")  # covered by the mate: not a strike
+	s.end_hour()
+	check(s.last_bet == stake, "a strike your mate covers doesn't lose the bet")
+
+	s = night()
+	s.pay = 1000
+	s.buy("double")
+	s.end_hour()
+	check(s.last_bet == -stake, "an hour with nothing sorted isn't clean: the bet is lost")
+
+	# slots: every combination gets the right payout
+	s = night()
+	var price: int = s.shop_item("slots").price
+	var paid := 0.0
+	var spins := 0
+	s.pay = 100000000
+	var by_kind := {}
+	for i in 20000:
+		var w := s.winnings
+		s.buy("slots")
+		var r: Array = s.last_spin.reels
+		var want := 0
+		if r[0] == r[1] and r[1] == r[2]:
+			want = cfg.slots.three[r[0]]
+		elif r[0] == r[1] or r[1] == r[2] or r[0] == r[2]:
+			want = cfg.slots.pair
+		if s.last_spin.payout != want or s.winnings != w - price + want:
+			check(false, "wrong payout for %s: %d" % [r, s.last_spin.payout])
+			break
+		paid += want
+		spins += 1
+		by_kind[r[0]] = by_kind.get(r[0], 0) + 1
+	check(spins == 20000, "20000 spins: every combination pays what the table says")
+	var total: float = cfg.slots.weights.values().reduce(func(a, b): return a + b)
+	for key: String in cfg.slots.weights:
+		var share: float = by_kind.get(key, 0) / 20000.0
+		check(absf(share - cfg.slots.weights[key] / total) < 0.02, "%s comes up as often as its weight says (%.3f)" % [key, share])
+	var measured := paid / (spins * price)
+	check(absf(measured - slot_return()) < 0.15, "measured payback (%.2f) matches the table (%.2f)" % [measured, slot_return()])
+
+
+## What Chicken Slots pays back per dollar staked, worked out from rules.json.
+func slot_return() -> float:
+	var w: Dictionary = cfg.slots.weights
+	var total: float = w.values().reduce(func(a, b): return a + b)
+	var back := 0.0
+	for key: String in w:
+		var p: float = w[key] / total
+		back += p * p * p * cfg.slots.three[key] + 3.0 * p * p * (1.0 - p) * cfg.slots.pair
+	return back / cfg.shop.filter(func(i): return i.id == "slots")[0].price
 
 
 func test_shop() -> void:
@@ -477,8 +589,8 @@ func test_rules_data() -> void:
 		var name := ShiftState.hour_name(i)
 		check(h.speed[1] >= h.speed[0] and h.interval[1] <= h.interval[0], "%s: belt gets faster during the hour" % name)
 		# trays are 36 px tall; the gap between them is speed * interval at spawn time
-		check(minf(h.speed[0] * h.interval[0], h.speed[1] * h.interval[1]) > 100, "%s: trays never overlap" % name)
-		check(h.interval[1] >= 0.6, "%s: at least 0.6 s per tray" % name)
+		check(minf(h.speed[0] * h.interval[0], h.speed[1] * h.interval[1]) * (1.0 - cfg.interval_jitter) > 100, "%s: trays never overlap, even at the shortest gap" % name)
+		check(h.interval[1] * (1.0 - cfg.interval_jitter) >= 0.6, "%s: at least 0.6 s per tray, even at the shortest gap" % name)
 		# the worst case: a tray comes out from under the PA banner (bottom y = 118) and its 36 px height commits it at the red line
 		var reaction: float = (Belt.DECISION_Y - 18.0 - 118.0) / h.speed[1] - cfg.swing_seconds
 		check(reaction >= 0.4, "%s: at least 0.4 s to react to a tray coming out from under the PA (%.2f s)" % [name, reaction])
@@ -507,7 +619,15 @@ func test_rules_data() -> void:
 		check(item.has("name") and item.has("text") and item.price > 0, "shop item %s has a name, a description and a price" % item.id)
 		ids.append(item.id)
 	ids.sort()
-	check(ids == ["coffee", "earplugs", "mate"], "the shop sells exactly the three items the rules know")
+	check(ids == ["coffee", "double", "earplugs", "mate", "slots"], "the shop sells exactly the five items the rules know")
+	check(cfg.no_repeat_from >= 2 and cfg.no_repeat_from < cfg.hours.size(), "exits stop repeating once all three are in play (12 AM)")
+	check(cfg.interval_jitter > 0.0 and cfg.interval_jitter < 0.5, "the gap between trays varies, but not wildly")
+	for symbol: String in cfg.slots.weights:
+		check(Tray.FOOD.has(symbol) and cfg.slots.three.has(symbol), "slot symbol %s has art and a payout" % symbol)
+		check(int(cfg.slots.weights[symbol]) % 5 == 0, "slot weight of %s fits the reel strip (multiple of 5)" % symbol)
+	var back := slot_return()
+	check(back >= 0.8 and back < 1.0, "Chicken Slots loses a little over time, so skill earns the most (pays back %.2f)" % back)
+	check(cfg.slots.pair < cfg.shop.filter(func(i): return i.id == "slots")[0].price, "a pair gives back less than the spin costs")
 	check(cfg.coffee_factor > 0.5 and cfg.coffee_factor < 1.0, "coffee slows the belt, but not to a crawl")
 	check(cfg.pa.from_hour > 0 and cfg.pa.from_hour < cfg.hours.size(), "the PA starts partway through the night")
 	check(cfg.pa.every[0] > cfg.pa.seconds and cfg.pa.every[1] >= cfg.pa.every[0], "announcements never overlap")

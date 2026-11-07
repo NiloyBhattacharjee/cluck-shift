@@ -37,29 +37,7 @@ func advance(dist: float) -> bool:
 func _draw() -> void:
 	var box := Rect2(-26, -18, 52, 36)
 	draw_rect(box, Color("eceff1"))
-	match kind:
-		"wing":
-			draw_colored_polygon(PackedVector2Array([Vector2(-18, 8), Vector2(16, -12), Vector2(6, 2), Vector2(14, 10)]), FOOD.wing)
-		"drumstick":
-			draw_line(Vector2(-16, 10), Vector2(-2, 0), Color("bcaaa4"), 5)
-			draw_circle(Vector2(-18, 11), 4, Color("bcaaa4"))
-			draw_circle(Vector2(6, -4), 11, FOOD.drumstick)
-		"nugget":
-			for p in [Vector2(-11, -4), Vector2(9, -6), Vector2(0, 7)]:
-				draw_circle(p, 7, FOOD.nugget)
-		"tender":
-			for y in [-6.0, 7.0]:
-				draw_line(Vector2(-16, y), Vector2(12, y - 3), FOOD.tender, 8)
-				draw_circle(Vector2(-16, y), 4, FOOD.tender)
-				draw_circle(Vector2(12, y - 3), 4, FOOD.tender)
-		"stranger":  # a chicken in a trench coat and sunglasses, trying to look like a nugget
-			draw_colored_polygon(PackedVector2Array([Vector2(-15, 16), Vector2(-9, 2), Vector2(9, 2), Vector2(15, 16)]), FOOD.stranger)
-			draw_line(Vector2(0, 3), Vector2(0, 16), Color("8d6e63"), 2)
-			for i in 3:
-				draw_circle(Vector2(-5 + i * 5, -15), 3, Color("e53935"))
-			draw_circle(Vector2(0, -6), 9, Color("fafafa"))
-			draw_rect(Rect2(-9, -10, 18, 5), Color("212121"))
-			draw_colored_polygon(PackedVector2Array([Vector2(8, -4), Vector2(15, -2), Vector2(8, 0)]), Color("ffa000"))
+	draw_food(self, kind)
 	if stamp != "":  # red is a round stamp, blue a diamond, so they differ without colour
 		var c: Color = STAMPS.get(stamp, Color.GRAY)
 		var at := Vector2(17, -9)
@@ -72,3 +50,30 @@ func _draw() -> void:
 	if result != 0:
 		edge = Color("66bb6a") if result > 0 else Color("ef5350")
 	draw_rect(box, edge, false, 3.0 if result == 0 else 5.0)
+
+
+## The food itself, on any canvas: the trays and the slot reels both draw it.
+static func draw_food(on: CanvasItem, what: String) -> void:
+	match what:
+		"wing":
+			on.draw_colored_polygon(PackedVector2Array([Vector2(-18, 8), Vector2(16, -12), Vector2(6, 2), Vector2(14, 10)]), FOOD.wing)
+		"drumstick":
+			on.draw_line(Vector2(-16, 10), Vector2(-2, 0), Color("bcaaa4"), 5)
+			on.draw_circle(Vector2(-18, 11), 4, Color("bcaaa4"))
+			on.draw_circle(Vector2(6, -4), 11, FOOD.drumstick)
+		"nugget":
+			for p in [Vector2(-11, -4), Vector2(9, -6), Vector2(0, 7)]:
+				on.draw_circle(p, 7, FOOD.nugget)
+		"tender":
+			for y in [-6.0, 7.0]:
+				on.draw_line(Vector2(-16, y), Vector2(12, y - 3), FOOD.tender, 8)
+				on.draw_circle(Vector2(-16, y), 4, FOOD.tender)
+				on.draw_circle(Vector2(12, y - 3), 4, FOOD.tender)
+		"stranger":  # a chicken in a trench coat and sunglasses, trying to look like a nugget
+			on.draw_colored_polygon(PackedVector2Array([Vector2(-15, 16), Vector2(-9, 2), Vector2(9, 2), Vector2(15, 16)]), FOOD.stranger)
+			on.draw_line(Vector2(0, 3), Vector2(0, 16), Color("8d6e63"), 2)
+			for i in 3:
+				on.draw_circle(Vector2(-5 + i * 5, -15), 3, Color("e53935"))
+			on.draw_circle(Vector2(0, -6), 9, Color("fafafa"))
+			on.draw_rect(Rect2(-9, -10, 18, 5), Color("212121"))
+			on.draw_colored_polygon(PackedVector2Array([Vector2(8, -4), Vector2(15, -2), Vector2(8, 0)]), Color("ffa000"))
