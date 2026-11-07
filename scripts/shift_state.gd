@@ -16,6 +16,7 @@ var cfg: Dictionary
 var rng := RandomNumberGenerator.new()
 var routes := {}  # tray kind -> exit; supervisor notes change it
 var stamps := {}  # stamp colour -> exit; a stamp beats the kind
+var dead_stamps := []  # stamps a note cancelled: still printed, but the tray goes where its kind goes
 var route := "center"  # where the fork sends the next tray: "left", "center" or "right"
 var clock := 0.0  # game seconds since clock-in (also times the both-Shifts window)
 var hour := -1  # index into cfg.hours; -1 until the first hour starts
@@ -108,8 +109,10 @@ func apply_note(n: Dictionary) -> Array:
 		for s: String in n.stamp:
 			if n.stamp[s] == null:
 				stamps.erase(s)
+				dead_stamps.append(s)
 			else:
 				stamps[s] = n.stamp[s]
+				dead_stamps.erase(s)
 		return n.stamp.keys()
 	if n.has("swap"):
 		var a: String = n.swap[0]
@@ -311,7 +314,8 @@ func next_tray() -> Dictionary:
 	var colours := stamps.keys().filter(func(s: String) -> bool: return stamps[s] == exit)
 	if not colours.is_empty() and (kinds.is_empty() or rng.randf() < cfg.stamp_chance):
 		return {"kind": _pick(routes.keys()), "stamp": _pick(colours)}
-	return {"kind": _pick(kinds), "stamp": ""}
+	var decoy: String = _pick(dead_stamps) if not dead_stamps.is_empty() and rng.randf() < cfg.stamp_chance else ""
+	return {"kind": _pick(kinds), "stamp": decoy}
 
 
 ## Seconds until the next tray: this moment's interval, varied so the rhythm can't be learned.

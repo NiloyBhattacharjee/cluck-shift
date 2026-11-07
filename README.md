@@ -9,6 +9,8 @@ one hour and you're sent home.
 A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme **SHIFT**. Made with Godot 4.7
 (GDScript), playable in the browser.
 
+**[Play Cluck Shift on itch.io](https://niloybhattacharjee.itch.io/cluck-shift)**
+
 ![Gameplay](docs/images/gameplay.png)
 
 | | |
@@ -24,12 +26,12 @@ A [GitHub Game Off 2026](https://itch.io/jam/game-off-2026) entry for the theme 
 
 ## Play it
 
-- **In your browser (easiest):** open the game's itch.io page, press **Run game**, then click the game once so it
+- **In your browser (easiest):** open the [itch.io page](https://niloybhattacharjee.itch.io/cluck-shift), press **Run game**, then click the game once so it
   gets your keyboard. Nothing to download or install. You need a desktop browser (Chrome, Firefox or Edge) and a
   physical keyboard.
 - **Download and run it yourself:** on GitHub press **Code > Download ZIP** (or `git clone` this repo), unzip it,
   then follow [Run it](#run-it) below. You need the free Godot 4.7 editor.
-- **Windows download:** if the itch.io page offers `Cluck Shift.exe`, download it and double-click. No install. Windows
+- **Windows download:** get the .exe from the [latest GitHub release](https://github.com/NiloyBhattacharjee/cluck-shift/releases/latest) and double-click it. No install. Windows
   SmartScreen warns about unsigned apps: **More info > Run anyway**.
 
 ## Controls
