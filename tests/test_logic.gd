@@ -226,6 +226,7 @@ func test_next_tray() -> void:
 			seen["stamp"] = true
 	check(seen.size() == 3 and not seen.has("stamp"), "before any stamp rule: only the three kinds, no stamps")
 	s = night()
+	var shares := []
 	for i in cfg.hours.size():
 		if i > 0:
 			s.start_hour()
@@ -237,6 +238,7 @@ func test_next_tray() -> void:
 		var count := {}
 		var tenders := 0
 		var stamped := 0
+		var decoys := 0
 		for n in 2000:
 			var t := s.next_tray()
 			if t.kind == ShiftState.STRANGE:
@@ -249,12 +251,23 @@ func test_next_tray() -> void:
 			count[exit] = count.get(exit, 0) + 1
 			tenders += int(t.kind == "tender")
 			stamped += int(t.stamp != "")
+			if t.stamp != "" and not s.stamps.has(t.stamp):
+				decoys += 1
+				if exit != s.routes[t.kind]:
+					check(false, "%s: a cancelled stamp sends a %s to %s" % [name, t.kind, exit])
 		check(longest <= 2, "%s: never three trays in a row to one exit (longest %d)" % [name, longest])
 		if i >= int(cfg.no_repeat_from):
 			check(repeats == 0, "%s: every tray needs a key press: no two in a row to one exit (%d)" % [name, repeats])
 			check(count.size() == 3, "%s: all three exits are in play, so the next one is never certain" % name)
 		for exit: String in count:  # the strange trays push straight on a little above its share
 			check(count[exit] > 2000 / count.size() * 0.75, "%s: %s gets a fair share (%d of 2000)" % [name, exit, count[exit]])
+		if i >= int(cfg.no_repeat_from):
+			check(stamped >= 400, "%s: stamps never fade out: at least a fifth of trays (%d of 2000)" % [name, stamped])
+			shares.append(stamped)
+		check(decoys == 0 or i == cfg.hours.size() - 1, "%s: cancelled stamps only appear once a note cancels one (%d)" % [name, decoys])
+		if i == cfg.hours.size() - 1:
+			check(decoys >= 300, "%s: red trays keep coming after the note cancels them (%d of 2000)" % [name, decoys])
+			check(stamped == shares.max(), "%s: the last hour has the most stamps to read (%s)" % [name, shares])
 		if i == 3:
 			check(tenders > 150, "a new kind starts spawning as soon as it has a rule (%d)" % tenders)
 			check(stamped > 400, "a bin only a stamp goes to still gets its share of trays (%d stamped)" % stamped)

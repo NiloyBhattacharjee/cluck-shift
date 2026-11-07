@@ -27,7 +27,7 @@ cluck_shift/
 │   ├── ending.gd          # the two 6 AM endings (dawn, bus or trucks, payslip, ledger chart), drawn with shapes
 │   └── sfx.gd             # Sfx autoload: every sound synthesized at start-up
 ├── tests/
-│   ├── test_logic.gd      # 283 checks on ShiftState, Records, Tray.advance and rules.json
+│   ├── test_logic.gd      # 299 checks on ShiftState, Records, Tray.advance and rules.json
 │   └── test_play.gd       # plays a whole night of main.tscn headless with real key events (209 checks)
 └── docs/                  # this folder
 ```
