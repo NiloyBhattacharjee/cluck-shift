@@ -136,3 +136,70 @@ visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("6_ending")
+
+[node name="PauseButton" type="Button" parent="HUD"]
+visible = false
+offset_left = 14.0
+offset_top = 462.0
+offset_right = 94.0
+offset_bottom = 528.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 30
+text = "II"
+
+[node name="PauseMenu" type="VBoxContainer" parent="HUD"]
+visible = false
+offset_left = 310.0
+offset_top = 215.0
+offset_right = 650.0
+offset_bottom = 485.0
+theme_override_constants/separation = 12
+
+[node name="Back" type="Button" parent="HUD/PauseMenu"]
+custom_minimum_size = Vector2(0, 80)
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "Back to work"
+
+[node name="Sound" type="Button" parent="HUD/PauseMenu"]
+custom_minimum_size = Vector2(0, 80)
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "Sound: ON"
+
+[node name="Quit" type="Button" parent="HUD/PauseMenu"]
+custom_minimum_size = Vector2(0, 80)
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "Quit to the title"
+
+[node name="FocusHint" type="ColorRect" parent="HUD"]
+visible = false
+mouse_filter = 2
+anchor_right = 1.0
+offset_bottom = 38.0
+color = Color(1, 0.79, 0.16, 1)
+
+[node name="Text" type="Label" parent="HUD/FocusHint"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_colors/font_color = Color(0.11, 0.14, 0.19, 1)
+theme_override_font_sizes/font_size = 20
+text = "The game has lost the keyboard: click the game to get it back"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RotateCard" type="ColorRect" parent="HUD"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.06, 0.08, 0.11, 1)
+
+[node name="Text" type="Label" parent="HUD/RotateCard"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_font_sizes/font_size = 64
+text = "Turn your phone sideways"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2

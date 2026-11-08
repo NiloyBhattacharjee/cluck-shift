@@ -46,8 +46,8 @@ an unsigned app ("More info > Run anyway"); the itch.io page should say so.
 1. Zip the **contents** of `build/web/` (so `index.html` is at the root of the zip), leaving out any `*.import` files
    the editor left there.
 2. itch.io > your game > Edit > Uploads: upload the zip and tick **This file will be played in the browser**.
-3. Kind of project: **HTML**. Viewport: **960 x 540**. Tick **Fullscreen button**. Leave
-   **SharedArrayBuffer support** off (not needed).
+3. Kind of project: **HTML**. Viewport: **960 x 540**. Tick **Fullscreen button** and **Mobile Friendly**, with the
+   orientation set to **Landscape**. Leave **SharedArrayBuffer support** off (not needed).
 4. Add the Game Off 2026 tag and the GitHub repo link in the description.
 5. Upload `build/windows/Cluck Shift.exe` as a second file and mark it **Windows**. Mention the SmartScreen warning.
 
